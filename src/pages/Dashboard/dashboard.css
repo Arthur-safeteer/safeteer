@@ -1,0 +1,188 @@
+/* ---- Layout base ---- */
+.dashboard {
+  min-height: 100vh;
+  background: #ffffff91;
+  color: #000000;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+.dashboard-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+.section-title {
+  font-weight: 600;
+  margin: 8px 0 12px 0;
+  color: #000000;
+}
+
+/* ---- Grid helpers ---- */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 24px; 
+  margin-bottom: 32px; 
+}
+
+@media (max-width: 1024px) {
+  .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.cards-3 {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 28px;
+  margin-top: 32px;
+  margin-bottom: 32px; 
+}
+
+@media (max-width: 1024px) {
+  .cards-3 { grid-template-columns: 1fr; }
+}
+
+/* ---- Card / Tipografia ---- */
+.card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+.stat-title {
+  color: #000000;
+  font-size: 0.9rem;
+}
+.stat-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+.stat-sub {
+  color: #000000;
+  font-size: 0.78rem;
+  margin-top: 2px;
+}
+
+/* ---- Flex helpers ---- */
+.row { display: flex; align-items: center; gap: 12px; }
+.row-between { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
+/* ---- Filtros ---- */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 28px; 
+}
+.field { display: flex; flex-direction: column; gap: 6px; }
+.label { font-size: 0.78rem; color: #000000; }
+.input, .select {
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  color: #000000;
+  border-radius: 12px;
+  padding: 8px 10px;
+  font-size: 0.9rem;
+}
+.input:focus, .select:focus {
+  box-shadow: 0 0 0 2px rgba(29, 192, 171, 0.5);
+}
+.flex-1 { flex: 1 1 220px; min-width: 220px; }
+
+/* ---- Botões ---- */
+.btn {
+  padding: 8px 14px;
+  border-radius: 12px;
+  font-size: 0.88rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: 120ms ease;
+}
+.btn-primary {
+  background: #1dc0ab;
+  color: #ffffff;
+}
+.btn-primary:hover {
+  filter: brightness(1.05);
+}
+.btn-outline {
+  background: transparent;
+  color: #f30303;
+  border-color: rgba(0, 0, 0, 0.12);
+}
+.btn-outline:hover {
+  background: rgba(7, 7, 7, 0.06);
+}
+
+/* ---- Alertas ---- */
+.alert-card { padding: 0; }
+.alert-head { padding: 16px; display: flex; gap: 12px; }
+.alert-meta {
+  color: #070707;
+  font-size: 0.78rem;
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.alert-actions { display: flex; align-items: center; gap: 8px; }
+.alert-body {
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.badge-critical { background: #ef4444; color: #fff; }
+.badge-high { background: #f97316; color: #fff; }
+.badge-medium { background: #facc15; color: #111827; }
+.badge-low { background: #1dc0ab; color: #fff; }
+
+.status-open { background: #d1fae5; color: #065f46; }
+.status-progress { background: #e0e7ff; color: #3730a3; }
+.status-closed { background: #e5e7eb; color: #374151; }
+
+.btn-ghost {
+  color: #b1b5c0;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 6px 10px;
+  border-radius: 10px;
+}
+.btn-ghost:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ---- Timeline Legend ---- */
+.legend {
+  display: flex;
+  gap: 12px;
+  font-size: 0.78rem;
+  color: #0c0c0c;
+}
+.legend-dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.legend-low { background: #1dc0ab; }
+.legend-med { background: #facc15; }
+.legend-high { background: #f97316; }
+.legend-crit { background: #ef4444; }
+
+/* ---- Gauge ---- */
+.gauge-title { font-weight: 600; margin-bottom: 16px; color: #000000; }
+.gauge-score { text-align: center; margin-top: -40px; }
+.gauge-score .val { font-size: 2.25rem; font-weight: 800; }
+.gauge-score .sub { color: #000000; font-size: 0.85rem; }
+
+/* ---- Footer ---- */
+.footer { padding: 24px 0; text-align: center; font-size: 15px; color: #1dc0ab; }
+
+/* ---- Espaçamento vertical ---- */
+.space-y > * + * { margin-top: 50px; }
+
+
