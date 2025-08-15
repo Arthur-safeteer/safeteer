@@ -462,7 +462,7 @@ const DashboardPage: React.FC = () => {
         </div>
 
         {/* Recent Alerts */}
-        <h3 className="section-title" style={{ marginTop: 20 }}>Alertas Recentes</h3>
+        <h3 className="section-title" style={{ marginTop: 20 }}>Alertas Recente</h3>
         <div className="space-y">
           {mockAlerts.map((a) => (
             <AlertItem key={a.id} alert={a} />
