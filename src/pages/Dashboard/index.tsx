@@ -1,6 +1,5 @@
-// imports de bibliotecas e estilos
-import React, { useMemo, useState } from "react";         //importa o react e hooks
-import { motion, AnimatePresence } from "framer-motion";  //animações
+import React, { useEffect, useMemo, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   BarChart,
   Bar,
@@ -9,90 +8,150 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
-} from "recharts";                                        //gráficos
-import "./dashboard.css";                                 //css
+} from "recharts";
+import {
+  listAlertHeaders,
+  getAlertDetails,
+  filterAlerts,
+  type FilterBody,
+  type ApiAlertHeaderRaw,
+} from "../../api/alerts";
+import "./dashboard.css";
 
-// ---------------------- Tipos ----------------------
-type Severity = "crítica" | "alta" | "média" | "baixa";   //tipos de severidade
-type Status = "aberta" | "em_progresso" | "fechada";      //tipos de status
+// --- Normaliza erro do Axios/JS para string, evitando renderizar objetos no JSX
+function formatErr(e: any): string {
+  if (!e) return "Erro desconhecido";
+  if (typeof e === "string") return e;
+  const msg = e?.response?.data?.message ?? e?.response?.data?.error ?? e?.message;
+  if (typeof msg === "string") return msg;
+  try { return JSON.stringify(msg ?? e); } catch { return String(e); }
+}
+
+
+/* ===================== Tipos de UI ===================== */
+type Severity = "crítica" | "alta" | "média" | "baixa";
+type Status = "aberta" | "em_progresso" | "fechada";
 
 type Alert = {
-  id: string;                  //id do alerta
-  title: string;               //titulo do alerta
-  createdAt: string;           //data de criação
-  updatedAt?: string;          //data de atualização
-  severity: Severity;          //severidade
-  status: Status;              //status
-  endpoint: string;            //endpoint afetado
-  category: "ransomware" | "login_suspeito" | "software_bloqueado" | "outros";   //categoria do alerta
-  score: number;               //pontuação de risco
-  aiSummary?: string;          //resumo gerado por IA
-  recommendations?: string[];  //recomendações de mitigação
+  id: string;
+  title: string;
+  createdAt: string; // pode ser ISO ou dd/MM/yyyy HH:mm:ss (parser trata)
+  updatedAt?: string;
+  severity: Severity;
+  status: Status;
+  endpoint: string;
+  category: "ransomware" | "login_suspeito" | "software_bloqueado" | "outros";
+  score: number;
+  aiSummary?: string;
+  recommendations?: string[];
 };
 
-// ---------------------- Mock Data ----------------------
+type TimelinePoint = {
+  hour: string;
+  baixa: number;
+  media: number;
+  alta: number;
+  critica: number;
+};
 
-//Dados "Fakes" para testar 
-const mockAlerts: Alert[] = [
-  {
-    id: "ALR-2321-457",
-    title: "Tentativa de Ransomware Detectada",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-    severity: "crítica",
-    status: "em_progresso",
-    endpoint: "server-web-01",
-    category: "ransomware",
-    score: 92,
-    aiSummary:
-      "Detectado comportamento consistente com ransomware. O processo suspicious.exe tentou modificar 487 arquivos em 30 segundos, incluindo extensões .doc, .xls e .pdf. Padrão de criptografia identificado. O processo foi originado de um email recebido às 14:15. Conexão estabelecida com servidor C2 conhecido (185.234.XX.XX). Ação imediata tomada para conter a ameaça.",
-    recommendations: [
-      "Isolar imediatamente o servidor-web-01 da rede",
-      "Verificar backups recentes antes do incidente (14:00)",
-      "Escanear todos os endpoints que acessaram o servidor hoje",
-      "Revisar logs de email do usuário que originou o processo",
-      "Considerar restauração do servidor após análise forense",
-    ],
-  },
-  {
-    id: "ALR-1902-010",
-    title: "Login Suspeito Detectado",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(),
-    severity: "média",
-    status: "aberta",
-    endpoint: "api-gateway",
-    category: "login_suspeito",
-    score: 63,
-    aiSummary:
-      "Tentativas de login sequenciais por IP desconhecido — possível força bruta.",
-    recommendations: ["Forçar MFA no próximo login", "Bloquear IP por 24h"],
-  },
-  {
-    id: "ALR-1022-884",
-    title: "Software não autorizado instalado",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 22).toISOString(),
-    severity: "alta",
-    status: "fechada",
-    endpoint: "finops-workstation-05",
-    category: "software_bloqueado",
-    score: 70,
-  },
-];
+/* ===================== Normalizadores ===================== */
+const toISO = (v?: string | number) =>
+  v == null ? undefined : typeof v === "number" ? new Date(v).toISOString() : v;
 
-// Dados para a linha do tempo
-// Simula 24 horas de dados de alertas
-// basicamente transforma um array de 24 horas em um array de objetos com contagem de alertas por severidade 
-// ai cada vez q atualiza a pagina, os valores mudam por usar o math.random --> vai mudar para os dados reais depois 
+const mapSeverity = (s?: string): Severity | undefined => {
+  const v = s?.toLowerCase();
+  if (!v) return undefined;
+  if (v.startsWith("cr")) return "crítica";
+  if (v.startsWith("al")) return "alta";
+  if (v.startsWith("mé") || v.startsWith("me")) return "média";
+  if (v.startsWith("ba")) return "baixa";
+  return undefined;
+};
 
-const hours = Array.from({ length: 24 }).map((_, i) => i);
-const timelineData = hours.map((h) => ({
-  hour: `${String(h).padStart(2, "0")}:00`,
-  baixa: Math.floor(Math.random() * 4),
-  media: Math.floor(Math.random() * 5),
-  alta: Math.floor(Math.random() * 3),
-  critica: Math.floor(Math.random() * 2),
-}));
+const mapStatus = (s?: string): Status | undefined => {
+  const v = s?.toLowerCase();
+  if (!v) return undefined;
+  if (v.includes("progress")) return "em_progresso";
+  if (v.includes("fech") || v.includes("clos")) return "fechada";
+  if (v.includes("ab") || v.includes("open")) return "aberta";
+  return undefined;
+};
 
-// ---------------------- Helpers ----------------------
+const scoreBySeverity: Record<Severity, number> = {
+  crítica: 100,
+  alta: 75,
+  média: 50,
+  baixa: 25,
+};
+
+function adaptHeaderToAlert(h: ApiAlertHeaderRaw): Alert {
+  const sev = mapSeverity(h.severidade) ?? "média";
+  return {
+    id: h.alerta_id,
+    title: h.titulo || `Alerta ${h.alerta_id}`,
+    createdAt: (toISO(h.created_at) as string) || new Date().toISOString(),
+    updatedAt: toISO(h.updated_at),
+    severity: sev,
+    status: mapStatus(h.status) ?? "aberta",
+    endpoint: h.endpoint || "desconhecido",
+    category: (h.categoria as Alert["category"]) || "outros",
+    score: scoreBySeverity[sev],
+  };
+}
+
+/* ===================== Timeline (24h) baseada em ALERTS adaptados ===================== */
+function toMillis(v?: string | number): number | null {
+  if (v == null) return null;
+  if (typeof v === "number") return v < 1e12 ? v * 1000 : v; // epoch s->ms
+  const iso = Date.parse(v); // tenta ISO
+  if (!Number.isNaN(iso)) return iso;
+  // fallback dd/MM/yyyy [HH:mm:ss]
+  const m = v.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:[ T](\d{2}):(\d{2}):(\d{2}))?/);
+  if (m) {
+    const [, dd, mm, yyyy, hh = "00", mi = "00", ss = "00"] = m;
+    return new Date(+yyyy, +mm - 1, +dd, +hh, +mi, +ss).getTime();
+  }
+  return null;
+}
+
+function buildTimeline24hFromAlerts(alerts: Alert[]): TimelinePoint[] {
+  const now = Date.now();
+  const start = now - 24 * 60 * 60 * 1000;
+
+  const bins: TimelinePoint[] = Array.from({ length: 24 }, (_, i) => {
+    const t = new Date(start + i * 60 * 60 * 1000);
+    const hour = `${String(t.getHours()).padStart(2, "0")}:00`;
+    return { hour, baixa: 0, media: 0, alta: 0, critica: 0 };
+  });
+
+  for (const a of alerts) {
+    const ms = toMillis(a.createdAt);
+    if (ms == null || ms < start || ms > now) continue;
+    const idx = Math.min(23, Math.max(0, Math.floor((ms - start) / (60 * 60 * 1000))));
+    if (a.severity === "baixa") bins[idx].baixa++;
+    else if (a.severity === "média") bins[idx].media++;
+    else if (a.severity === "alta") bins[idx].alta++;
+    else if (a.severity === "crítica") bins[idx].critica++;
+  }
+  return bins;
+}
+
+/* ===================== Risco (segue usando headers crus) ===================== */
+function computeRiskScoreFromHeaders(headers: ApiAlertHeaderRaw[]): number {
+  const w: Record<Severity, number> = {
+    crítica: 1.0,
+    alta: 0.7,
+    média: 0.4,
+    baixa: 0.2,
+  };
+  const sum = headers.reduce(
+    (acc, h) => acc + w[mapSeverity(h.severidade) ?? "média"],
+    0
+  );
+  return Math.max(0, Math.min(100, Math.round((sum / 10) * 100)));
+}
+
+/* ===================== Helpers visuais ===================== */
 function severityClass(s: Severity) {
   switch (s) {
     case "crítica":
@@ -122,7 +181,7 @@ function statusClass(s: Status) {
   }
 }
 
-// ---------------------- UI Primitives ----------------------
+/* ===================== UI Primitives ===================== */
 const Card: React.FC<{ className?: string; children: React.ReactNode }> = ({
   className = "",
   children,
@@ -146,17 +205,15 @@ const StatCard: React.FC<{
   </Card>
 );
 
-// ---------------------- FilterBar ----------------------
-const FilterBar: React.FC<{ onApply: (filters: any) => void }> = ({
-  onApply,
-}) => {
+/* ===================== FilterBar ===================== */
+const FilterBar: React.FC<{ onApply: (filters: any) => void }> = ({ onApply }) => {
   const [start, setStart] = useState<string>(
     new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString().slice(0, 10)
   );
-  const [end, setEnd]             = useState<string>(new Date().toISOString().slice(0, 10));
-  const [severity, setSeverity]   = useState<string>("todas");
-  const [status, setStatus]       = useState<string>("em_progresso");
-  const [endpoint, setEndpoint]   = useState<string>("todos");
+  const [end, setEnd] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [severity, setSeverity] = useState<string>("todas");
+  const [status, setStatus] = useState<string>("todos");
+  const [endpoint, setEndpoint] = useState<string>("todos");
   const [q, setQ] = useState("");
 
   return (
@@ -187,15 +244,15 @@ const FilterBar: React.FC<{ onApply: (filters: any) => void }> = ({
             onChange={(e) => setSeverity(e.target.value)}
             className="select"
           >
-            <option value="todas">     Todas</option>
-            <option value="crítica">   Crítica</option>
-            <option value="alta">      Alta</option>
-            <option value="média">     Média</option>
-            <option value="baixa">     Baixa</option>
+            <option value="todas">Todas</option>
+            <option value="crítica">Crítica</option>
+            <option value="alta">Alta</option>
+            <option value="média">Média</option>
+            <option value="baixa">Baixa</option>
           </select>
         </div>
         <div className="field">
-          <label className="label">    Status</label>
+          <label className="label">Status</label>
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
@@ -242,9 +299,7 @@ const FilterBar: React.FC<{ onApply: (filters: any) => void }> = ({
             Limpar Filtros
           </button>
           <button
-            onClick={() =>
-              onApply({ start, end, severity, status, endpoint, q })
-            }
+            onClick={() => onApply({ start, end, severity, status, endpoint, q })}
             className="btn btn-primary"
           >
             Aplicar
@@ -255,20 +310,31 @@ const FilterBar: React.FC<{ onApply: (filters: any) => void }> = ({
   );
 };
 
-// ---------------------- AlertItem (click no cabeçalho) ----------------------
+/* ===================== AlertItem ===================== */
 const AlertItem: React.FC<{ alert: Alert }> = ({ alert }) => {
   const [open, setOpen] = useState(false);
+  const [detail, setDetail] = useState<any | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const toggle = () => setOpen((v) => !v);
+  const toggle = async () => {
+    const willOpen = !open;
+    setOpen(willOpen);
+    if (willOpen && !detail) {
+      try {
+        setLoading(true);
+        const d = await getAlertDetails(alert.id);
+        setDetail(d);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
 
   return (
     <Card className={`alert-card ${open ? "is-open" : ""}`}>
-      <div
-        className="alert-head clickable"
-        onClick={toggle}
-        role="button"
-        tabIndex={0}
-      >
+      <div className="alert-head clickable" onClick={toggle} role="button" tabIndex={0}>
         <span className={`badge ${severityClass(alert.severity)}`}>
           {alert.severity.toUpperCase()}
         </span>
@@ -280,14 +346,9 @@ const AlertItem: React.FC<{ alert: Alert }> = ({ alert }) => {
               <div className="alert-meta">
                 <span>ID: {alert.id}</span>
                 <span>HOST: {alert.endpoint}</span>
-                <span>
-                  Primeira detecção: {new Date(alert.createdAt).toLocaleString()}
-                </span>
+                <span>Primeira detecção: {new Date(alert.createdAt).toLocaleString()}</span>
                 {alert.updatedAt && (
-                  <span>
-                    Última atualização:{" "}
-                    {new Date(alert.updatedAt).toLocaleString()}
-                  </span>
+                  <span>Última atualização: {new Date(alert.updatedAt).toLocaleString()}</span>
                 )}
               </div>
             </div>
@@ -310,28 +371,11 @@ const AlertItem: React.FC<{ alert: Alert }> = ({ alert }) => {
             transition={{ duration: 0.22 }}
             className="alert-body"
           >
-            {alert.aiSummary && (
-              <div style={{ marginBottom: 12 }}>
-                <h5 style={{ margin: "0 0 4px 0", fontWeight: 600 }}>
-                  Análise da IA
-                </h5>
-                <p style={{ margin: 0, lineHeight: 1.5, color: "#cbd5e1", fontSize: 14 }}>
-                  {alert.aiSummary}
-                </p>
-              </div>
-            )}
-
-            {alert.recommendations && alert.recommendations.length > 0 && (
-              <div>
-                <h5 style={{ margin: "0 0 8px 0", fontWeight: 600 }}>
-                  Recomendações
-                </h5>
-                <ul style={{ margin: 0, paddingLeft: 18, color: "#cbd5e1", fontSize: 14 }}>
-                  {alert.recommendations.map((r, i) => (
-                    <li key={i}>{r}</li>
-                  ))}
-                </ul>
-              </div>
+            {loading && <p>Carregando detalhe…</p>}
+            {!loading && detail && (
+              <pre style={{ margin: 0, whiteSpace: "pre-wrap" }}>
+                {JSON.stringify(detail, null, 2)}
+              </pre>
             )}
           </motion.div>
         )}
@@ -340,24 +384,16 @@ const AlertItem: React.FC<{ alert: Alert }> = ({ alert }) => {
   );
 };
 
-// ---------------------- Timeline ----------------------
-const AlertTimeline: React.FC = () => (
+/* ===================== Timeline (BarChart) ===================== */
+const AlertTimeline: React.FC<{ data: TimelinePoint[] }> = ({ data }) => (
   <Card>
     <h3 className="section-title">Linha do Tempo de Alertas (últimas 24h)</h3>
     <div style={{ height: 224 }}>
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={timelineData}>
+        <BarChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-          <XAxis
-            dataKey="hour"
-            tick={{ fill: "#b1b5c0", fontSize: 12 }}
-            tickLine={false}
-          />
-          <YAxis
-            tick={{ fill: "#b1b5c0", fontSize: 12 }}
-            tickLine={false}
-            allowDecimals={false}
-          />
+          <XAxis dataKey="hour" tick={{ fill: "#475569", fontSize: 12 }} tickLine={false} />
+          <YAxis tick={{ fill: "#475569", fontSize: 12 }} tickLine={false} allowDecimals={false} />
           <Tooltip
             contentStyle={{
               background: "#111b36",
@@ -376,26 +412,19 @@ const AlertTimeline: React.FC = () => (
   </Card>
 );
 
-// ---------------------- Gauge ----------------------
-
-//calculo da geometria do grafico 
+/* ===================== Gauge ===================== */
 const RiskGauge: React.FC<{ score: number }> = ({ score }) => {
-  const r = 80;                                   //raio 
-  const c = Math.PI * r;                          //comprimento total do arco
-  const pct = Math.max(0, Math.min(100, score));  //garante que o valor esteja entre 0 e 100
-  const filled = (pct / 100) * c;                 //parte preenchida do arco
+  const r = 80;
+  const c = Math.PI * r;
+  const pct = Math.max(0, Math.min(100, score));
+  const filled = (pct / 100) * c;
 
   return (
     <Card>
       <h3 className="gauge-title">Nível de Risco Atual</h3>
       <svg width={220} height={140} viewBox="0 0 220 140">
         <g transform="translate(110,120)">
-          <path
-            d={`M ${-r} 0 A ${r} ${r} 0 0 1 ${r} 0`}
-            fill="none"
-            stroke="rgba(0, 0, 0, 0.15)"
-            strokeWidth={18}
-          />
+          <path d={`M ${-r} 0 A ${r} ${r} 0 0 1 ${r} 0`} fill="none" stroke="rgba(0, 0, 0, 0.15)" strokeWidth={18} />
           <path
             d={`M ${-r} 0 A ${r} ${r} 0 0 1 ${-r + 2 * r * (pct / 100)} 0`}
             fill="none"
@@ -422,28 +451,119 @@ const RiskGauge: React.FC<{ score: number }> = ({ score }) => {
   );
 };
 
-// ---------------------- Página ----------------------
+/* ===================== Helpers de filtro/back ===================== */
+function toServerFilterBody(f: any): FilterBody {
+  const body: FilterBody = {} as any;
+  if (f.severity && f.severity !== "todas") (body as any).severidade = f.severity;
+  if (f.start) (body as any).data_inicio = `${f.start}T00:00:00Z`;
+  if (f.end) (body as any).data_fim = `${f.end}T23:59:59Z`;
+  if (f.endpoint && f.endpoint !== "todos") (body as any).hostname = f.endpoint;
+  return body;
+}
+function isServerFilterable(f: any | null): boolean {
+  if (!f) return false;
+  return (
+    (f.severity && f.severity !== "todas") ||
+    (f.endpoint && f.endpoint !== "todos") ||
+    !!f.start ||
+    !!f.end
+  );
+}
+
+/* ===================== Página ===================== */
 const DashboardPage: React.FC = () => {
+  const [headers, setHeaders] = useState<ApiAlertHeaderRaw[]>([]);
   const [filters, setFilters] = useState<any | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      try {
+        setLoading(true);
+        setErr(null);
+
+        let data: ApiAlertHeaderRaw[];
+        if (filters && isServerFilterable(filters)) {
+          data = await filterAlerts(toServerFilterBody(filters));
+        } else {
+          data = await listAlertHeaders();
+        }
+
+        if (!cancel) setHeaders(data);
+      } catch (e: any) {
+        if (!cancel) setErr(formatErr(e));
+      } finally {
+        if (!cancel) setLoading(false);
+      }
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, [filters]);
+
+  // filtro adicional no front (status + busca livre + endpoint/severity quando vieram "sem back")
+  const filteredRaw = useMemo(() => {
+    const base = headers;
+    if (!filters) return base;
+
+    return base.filter((h) => {
+      const sev = mapSeverity(h.severidade);
+      const st = mapStatus(h.status);
+
+      if (filters.severity && filters.severity !== "todas" && sev !== filters.severity) return false;
+      if (filters.status && filters.status !== "todos" && st !== filters.status) return false;
+      if (filters.endpoint && filters.endpoint !== "todos" && h.endpoint !== filters.endpoint) return false;
+      if (filters.q) {
+        const q = String(filters.q).toLowerCase();
+        const inTitle = (h.titulo || "").toLowerCase().includes(q);
+        const inId = (h.alerta_id || "").toLowerCase().includes(q);
+        const inHost = (h.endpoint || "").toLowerCase().includes(q);
+        if (!inTitle && !inId && !inHost) return false;
+      }
+
+      if (filters.start || filters.end) {
+        const d = h.created_at ? new Date(h.created_at) : null;
+        if (d) {
+          if (filters.start && d < new Date(filters.start)) return false;
+          if (filters.end) {
+            const end = new Date(filters.end);
+            end.setHours(23, 59, 59, 999);
+            if (d > end) return false;
+          }
+        }
+      }
+      return true;
+    });
+  }, [headers, filters]);
+
+  const alerts: Alert[] = useMemo(() => filteredRaw.map(adaptHeaderToAlert), [filteredRaw]);
+  const timeline = useMemo(() => buildTimeline24hFromAlerts(alerts), [alerts]);
+  const riskScore = useMemo(() => computeRiskScoreFromHeaders(filteredRaw), [filteredRaw]);
 
   const totals = useMemo(() => {
-    const total = mockAlerts.length + 44;
-    const criticos = mockAlerts.filter((a) => a.severity === "crítica").length + 2;
-    const resolucao = 0.94;
-    const tmr = 12;
+    const total = alerts.length;
+    const criticos = alerts.filter((a) => a.severity === "crítica").length;
+    const resolucao = 0.94; // TODO: calcular com base no status
+    const tmr = 12;         // idem
     return { total, criticos, resolucao, tmr };
-  }, []);
+  }, [alerts]);
 
   return (
     <div className="dashboard">
       <div className="dashboard-container">
+        {loading && <p>Carregando…</p>}
+        {err && <p style={{ color: "tomato" }}>{err}</p>}
+
         {/* Stats */}
         <div className="stats-grid">
           <StatCard
             title="Alertas Hoje"
             value={
               <span>
-                {totals.total} <span style={{ color: "#b1b5c0", fontSize: 12 }}>(+22% vs ontem)</span>
+                {totals.total}{" "}
+                <span style={{ color: "#b1b5c0", fontSize: 12 }}>(+22% vs ontem)</span>
               </span>
             }
           />
@@ -452,19 +572,21 @@ const DashboardPage: React.FC = () => {
           <StatCard title="Tempo Médio Resposta" value={<span>{totals.tmr}m</span>} subtitle="12m na média" />
         </div>
 
-        {/* Filters */}
+        {/* Filtros */}
         <FilterBar onApply={setFilters} />
 
-        {/* Charts + Gauge */}
+        {/* Timeline + Gauge */}
         <div className="cards-3">
-          <AlertTimeline />
-          <RiskGauge score={73} />
+          <AlertTimeline data={timeline} />
+          <RiskGauge score={riskScore} />
         </div>
 
-        {/* Recent Alerts */}
-        <h3 className="section-title" style={{ marginTop: 20 }}>Alertas Recente</h3>
+        {/* Lista */}
+        <h3 className="section-title" style={{ marginTop: 20 }}>
+          Alertas Recentes
+        </h3>
         <div className="space-y">
-          {mockAlerts.map((a) => (
+          {alerts.map((a) => (
             <AlertItem key={a.id} alert={a} />
           ))}
         </div>
