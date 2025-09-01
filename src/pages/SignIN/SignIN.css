@@ -5,41 +5,44 @@
   font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
 }
 .signin .card{
-  width:100%; max-width:560px; background:var(--surface);
-  border:1px solid rgba(0,0,0,.06); border-radius:var(--r-lg);
-  padding:28px; box-shadow:var(--shadow-lg); isolation:isolate;
+  width:100%; max-width:560px; background:linear-gradient(180deg,#ffffff, #fbfeff 60%);
+  border:1px solid rgba(15,23,42,.06); border-radius:var(--r-lg);
+  padding:32px; box-shadow:var(--shadow-lg); isolation:isolate;
+  backdrop-filter:saturate(1.1);
 }
 .signin .pop-in{ animation:pop .36s cubic-bezier(.2,.8,.2,1) both; }
 @keyframes pop{ from{opacity:0; transform:translateY(6px) scale(.98);} to{opacity:1; transform:none;} }
 
 .signin .header{ margin-bottom:12px; }
-.signin .title{ margin:0; font-size:26px; font-weight:800; color:var(--text); letter-spacing:.2px; }
-.signin .subtitle{ margin:6px 0 0; font-size:12px; color:var(--muted); }
+.signin .title{ margin:0; font-size:28px; font-weight:900; color:var(--text); letter-spacing:.2px; }
+.signin .subtitle{ margin:6px 0 0; font-size:13px; color:var(--muted); }
 
 /* -------- Tabs (com indicador) -------- */
 .signin .tabs{
   position:relative; display:grid; grid-template-columns:1fr 1fr; gap:var(--gap);
-  background:var(--surface-2); padding:var(--pad); border-radius:calc(var(--r)+2px);
-  margin:18px 0 12px; overflow:hidden;
+  background:linear-gradient(180deg, rgba(15,23,42,.04), rgba(15,23,42,.06));
+  padding:var(--pad); border-radius:calc(var(--r)+2px);
+  margin:22px 0 14px; overflow:hidden;
 }
 .signin .tabIndicator{
   position:absolute; z-index:0; pointer-events:none; top:var(--pad); left:var(--pad);
   height:calc(100% - (var(--pad)*2));
   width:calc((100% - (var(--pad)*2) - var(--gap))/2);
   border-radius:var(--r); background:linear-gradient(180deg,var(--p1),var(--p2));
-  box-shadow:0 10px 18px rgba(29,192,171,.22);
+  box-shadow:0 14px 22px rgba(29,192,171,.24);
   transform:translateX(0); transition:transform .42s cubic-bezier(.2,.8,.2,1);
 }
 .signin .tabs.is-register .tabIndicator{ transform:translateX(calc(100% + var(--gap))); }
 .signin .tabButton{
   position:relative; z-index:1; height:42px; border-radius:var(--r);
   border:1px solid var(--outline); background:transparent; font-weight:800; color:#0b1220;
-  transition:color .12s;
+  transition:color .12s, transform .08s;
 }
+.signin .tabButton:active{ transform:translateY(1px); }
 .signin .tabs.is-login .btn-login, .signin .tabs.is-register .btn-register{ color:#fff; }
 
 /* -------- Slider entre formulários -------- */
-.signin .forms{ position:relative; overflow:hidden; min-height:260px; }
+.signin .forms{ position:relative; overflow:hidden; min-height:270px; }
 .signin .slider{ width:200%; display:grid; grid-template-columns:1fr 1fr; transition:transform .42s cubic-bezier(.2,.8,.2,1); }
 .signin .forms.is-register .slider{ transform:translateX(-50%); }
 .signin .pane{ padding:2px 0; }
@@ -56,12 +59,13 @@
 
 .signin .input{
   width:100%; height:46px; border-radius:var(--r);
-  padding:10px 12px; font-size:.95rem;
-  border:1px solid var(--outline); background:var(--surface-2); color:var(--text);
-  transition: box-shadow .16s, border-color .16s, transform .08s;
+  padding:11px 12px; font-size:.97rem;
+  border:1px solid var(--outline); background:linear-gradient(180deg, #f7fafc, #f3f6f8);
+  color:var(--text);
+  transition: box-shadow .16s, border-color .16s, transform .08s, background .16s;
 }
 .signin .input.withToggle{ padding-right:44px; }
-.signin .input:focus{ box-shadow:0 0 0 2px rgba(29,192,171,.5); border-color:var(--p2); }
+.signin .input:focus{ box-shadow:0 0 0 3px rgba(29,192,171,.35); border-color:var(--p2); background:#fff; }
 .signin .input:active{ transform:translateY(1px); }
 
 .signin .inputWrap{ position:relative; }
@@ -70,16 +74,19 @@
   display:grid; place-items:center; width:36px; height:36px; border-radius:8px;
   background:transparent; color:var(--text); border:0;
 }
-.signin .togglePass:hover{ background:rgba(0,0,0,.06); }
+.signin .togglePass:hover{ background:rgba(15,23,42,.06); }
 
 .signin .error{ color:#ef4444; font-size:12px; }
 
 /* -------- Botões -------- */
-.signin .btn{ padding:12px 16px; border-radius:var(--r); font-size:.95rem; border:0; transition: transform .08s, filter .15s; }
+.signin .btn{ padding:12px 16px; border-radius:var(--r); font-size:.98rem; border:0; transition: transform .08s, filter .15s, box-shadow .15s; }
 .signin .btn:active{ transform:translateY(1px); }
 .signin .btn-primary{ background:linear-gradient(180deg,var(--p1),var(--p2)); color:#fff; font-weight:800; box-shadow:var(--shadow-md); }
 .signin .btn-primary:hover{ filter:brightness(1.06); }
 .signin .btn:disabled{ background:#a7cfc8; color:#fff; cursor:not-allowed; box-shadow:none; }
+
+/* leve realce para borda do cartão ao focar em campos */
+.signin .card:focus-within{ box-shadow:0 28px 56px rgba(2,6,23,.26); border-color:rgba(15,23,42,.12); }
 
 /* -------- Hint -------- */
 .signin .hint{ margin-top:14px; font-size:12px; color:var(--muted); text-align:center; }
@@ -89,6 +96,6 @@
   .signin .tabIndicator, .signin .slider, .signin .pop-in { transition:none !important; animation:none !important; }
 }
 @media (max-width:380px){
-  .signin .card{ padding:16px; }
-  .signin .title{ font-size:20px; }
+  .signin .card{ padding:18px; }
+  .signin .title{ font-size:22px; }
 }

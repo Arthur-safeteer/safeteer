@@ -1,18 +1,90 @@
-/* src/styles/dashboard.css */
-/* ===== Dashboard (tema claro) ===== */
+/* ============================ */
+/* src/styles/dashboard.css     */
+/* Estilos do Dashboard (tema claro) */
+/* ============================ */
 
+/* ===== Layout base do dashboard ===== */
 .dashboard {
-  min-height: 100vh;
-  background: #f3f4f6;           /* fundo claro do dashboard */
-  color: #0f172a;
+  min-height: 100vh;          /* ocupa toda a altura da tela */
+  background: #f3f4f6;        /* cinza clarinho de fundo */
+  color: #0f172a;             /* cor base do texto */
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 }
 
-/* container */
+/* ===== Header (topo fixo visualmente elegante) ===== */
+.dashboard-header {
+  background: #1e293b;        /* azul escuro */
+  color: #ffffff;             /* texto branco */
+  padding: 16px 0;            /* respiro vertical */
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1); /* sombra sutil */
+}
+
+.header-container {
+  max-width: 1200px;          /* largura máxima do conteúdo */
+  margin: 0 auto;             /* centraliza */
+  padding: 0 24px;            /* respiro lateral */
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* título à esquerda / perfil à direita */
+}
+
+.header-left { display: flex; align-items: center; }
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;                  /* espaço entre ícone e texto */
+}
+
+/* Bloco quadrado que funciona como “logo” */
+.logo-icon {
+  width: 40px;
+  height: 40px;
+  background: #1dc0ab;        /* verde acqua da identidade */
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.5rem; font-weight: 800; color: #ffffff;
+}
+
+.logo-text { font-size: 1.5rem; font-weight: 700; color: #ffffff; }
+
+/* Área à direita do header (ex: usuário) */
+.header-right { display: flex; align-items: center; gap: 24px; }
+
+/* Cartão de perfil do usuário (avatar + nome) */
+.user-profile {
+  display: flex; align-items: center; gap: 12px;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 8px;
+  transition: background-color 0.2s ease;
+}
+.user-profile:hover { background: rgba(255,255,255,0.1); }
+
+.user-avatar {
+  width: 36px; height: 36px;
+  background: #1dc0ab;        /* mesma cor do logo */
+  border-radius: 50%;         /* avatar circular */
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.9rem; font-weight: 700; color: #ffffff;
+}
+.user-name { font-size: 0.9rem; font-weight: 500; color: #ffffff; }
+
+/* ===== Responsividade do header ===== */
+@media (max-width: 768px) {
+  .header-container { padding: 0 16px; }
+  .logo-text { font-size: 1.2rem; }
+  .logo-icon { width: 32px; height: 32px; font-size: 1.2rem; }
+  .header-right { gap: 16px; }
+  .user-name { display: none; }         /* esconde o nome para ganhar espaço */
+  .user-avatar { width: 32px; height: 32px; font-size: 0.8rem; }
+}
+
+/* ===== Container central da página ===== */
 .dashboard .dashboard-container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 24px;                       /* respiro geral */
 }
 
 .dashboard .section-title {
@@ -21,49 +93,50 @@
   color: #0f172a;
 }
 
-/* ===== Grid helpers ===== */
+/* ===== Grades auxiliares (cards/KPIs) ===== */
 .dashboard .stats-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr)); /* 4 colunas */
   gap: 24px;
   margin-bottom: 32px;
 }
 @media (max-width: 1024px) {
-  .dashboard .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } /* 2 colunas no tablet */
 }
 
+/* Seção principal: gráfico + gauge (2/3 e 1/3) */
 .dashboard .cards-3 {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: 2fr 1fr;      /* coluna maior + coluna menor */
   gap: 28px;
   margin: 32px 0;
 }
 @media (max-width: 1024px) {
-  .dashboard .cards-3 { grid-template-columns: 1fr; }
+  .dashboard .cards-3 { grid-template-columns: 1fr; } /* empilha no mobile */
 }
 
-/* ===== Card / Tipografia ===== */
+/* ===== Aparência dos cards e tipografia de KPI ===== */
 .dashboard .card {
-  background: #ffffff;                         /* card realmente branco */
+  background: #ffffff;
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 16px;
   padding: 28px;
-  box-shadow: 0 4px 12px rgba(0,0,0,.08);
+  box-shadow: 0 4px 12px rgba(0,0,0,.08); /* sombra agradável */
 }
 .dashboard .stat-title { color: #475569; font-size: 0.9rem; }
 .dashboard .stat-value { font-size: 1.8rem; font-weight: 700; color:#0f172a; }
 .dashboard .stat-sub { color: #64748b; font-size: 0.78rem; margin-top: 2px; }
 
-/* ===== Flex helpers ===== */
+/* ===== Helpers de flex ===== */
 .dashboard .row { display: flex; align-items: center; gap: 12px; }
 .dashboard .row-between { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 
-/* ===== Filtros ===== */
-.dashboard .filter-bar {
-  display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 28px;
-}
+/* ===== Barra de filtros ===== */
+.dashboard .filter-bar { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 28px; }
 .dashboard .field { display: flex; flex-direction: column; gap: 6px; }
 .dashboard .label { font-size: 0.78rem; color: #475569; }
+
+/* Campos de input/select com foco acessível */
 .dashboard .input, .dashboard .select {
   background: #ffffff;
   border: 1px solid rgba(0, 0, 0, 0.12);
@@ -77,9 +150,9 @@
   box-shadow: 0 0 0 2px rgba(29, 192, 171, 0.4);
   border-color: rgba(29, 192, 171, 0.7);
 }
-.dashboard .flex-1 { flex: 1 1 220px; min-width: 220px; }
+.dashboard .flex-1 { flex: 1 1 220px; min-width: 220px; } /* cresce até 1fr, respeita mínimo */
 
-/* ===== Botões ===== */
+/* ===== Botões (primário, contorno e ghost) ===== */
 .dashboard .btn {
   padding: 8px 14px;
   border-radius: 12px;
@@ -92,7 +165,7 @@
 .dashboard .btn-primary:hover { filter: brightness(1.05); }
 .dashboard .btn-outline {
   background: transparent;
-  color: #ef4444;
+  color: #ef4444;            /* vermelho para ação secundária (ex: limpar) */
   border-color: rgba(0, 0, 0, 0.12);
 }
 .dashboard .btn-outline:hover { background: rgba(0, 0, 0, 0.06); }
@@ -109,28 +182,26 @@
   background: rgba(0, 0, 0, 0.04);
 }
 
-/* ===== Alertas ===== */
-.dashboard .alert-card { padding: 0; }
+/* ===== Cartões/listas de alertas ===== */
+.dashboard .alert-card { padding: 0; }            /* zera padding para cabeçalho separado */
 .dashboard .alert-head { padding: 16px; display: flex; gap: 12px; }
 .dashboard .alert-meta {
   color: #475569;
   font-size: 0.78rem;
   margin-top: 4px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
+  display: flex; flex-wrap: wrap; gap: 12px;      /* metadados em linha, quebrando quando precisar */
 }
 .dashboard .alert-actions { display: flex; align-items: center; gap: 8px; }
 .dashboard .alert-body {
   border-top: 1px solid rgba(0, 0, 0, 0.1);
   padding: 16px;
-  background: #ffffff; /* sem transparência no claro */
+  background: #ffffff;
 }
 
-/* ===== Badges ===== */
+/* ===== Badges de severidade (pílulas coloridas) ===== */
 .dashboard .badge {
   display: inline-flex; align-items: center;
-  padding: 2px 8px; border-radius: 999px;
+  padding: 2px 8px; border-radius: 999px;     /* pílula */
   font-size: 0.72rem; font-weight: 700;
 }
 .dashboard .badge-critical { background: #ef4444; color: #fff; }
@@ -138,12 +209,12 @@
 .dashboard .badge-medium   { background: #facc15; color: #111827; }
 .dashboard .badge-low      { background: #1dc0ab; color: #fff; }
 
-/* ===== Status tags ===== */
+/* ===== Status (aberta/em progresso/fechada) ===== */
 .dashboard .status-open     { background: #d1fae5; color: #065f46; }
 .dashboard .status-progress { background: #e0e7ff; color: #3730a3; }
 .dashboard .status-closed   { background: #e5e7eb; color: #374151; }
 
-/* ===== Timeline Legend ===== */
+/* ===== Legenda do gráfico/timeline ===== */
 .dashboard .legend { display: flex; gap: 12px; font-size: 0.78rem; color: #475569; }
 .dashboard .legend-dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 .dashboard .legend-low { background: #1dc0ab; }
@@ -151,14 +222,207 @@
 .dashboard .legend-high{ background: #f97316; }
 .dashboard .legend-crit{ background: #ef4444; }
 
-/* ===== Gauge ===== */
-.dashboard .gauge-title { font-weight: 600; margin-bottom: 16px; color: #0f172a; }
-.dashboard .gauge-score { text-align: center; margin-top: -40px; }
-.dashboard .gauge-score .val { font-size: 2.25rem; font-weight: 800; color:#0f172a; }
-.dashboard .gauge-score .sub { color: #64748b; font-size: 0.85rem; }
+/* ===== Cabeçalho e controles do timeline ===== */
+.dashboard .timeline-header {
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(15,23,42,0.06);
+}
+.dashboard .timeline-title-row {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;
+}
+.dashboard .timeline-title {
+  font-weight: 600; margin: 0; color: #0f172a; font-size: 1.1rem;
+}
 
-/* ===== Footer ===== */
+/* Seletor de período (24h/7d/30d) com “pill” de fundo */
+.dashboard .period-selector {
+  display: flex; gap: 4px;
+  background: rgba(15,23,42,0.04);
+  border-radius: 8px; padding: 2px;
+}
+.dashboard .period-btn {
+  padding: 6px 12px; border: none; background: transparent;
+  color: #64748b; font-size: 0.8rem; font-weight: 500;
+  border-radius: 6px; cursor: pointer; transition: all 0.2s ease;
+  min-width: 40px; /* largura mínima para não “pular” */
+}
+.dashboard .period-btn:hover { color: #475569; background: rgba(15,23,42,0.06); }
+.dashboard .period-btn.active {
+  background: #1dc0ab; color: #ffffff; box-shadow: 0 2px 4px rgba(29, 192, 171, 0.2);
+}
+
+.dashboard .timeline-subtitle { color: #64748b; font-size: 0.85rem; font-weight: 400; }
+.dashboard .timeline-chart { height: 240px; margin-bottom: 20px; }
+
+/* Ticks do eixo X um pouco menores para caber mais labels */
+.dashboard .timeline-chart .recharts-xAxis .recharts-cartesian-axis-tick { font-size: 10px; }
+@media (max-width: 768px) {
+  .dashboard .timeline-chart .recharts-xAxis .recharts-cartesian-axis-tick { font-size: 9px; }
+}
+
+/* Legenda clicável abaixo do gráfico */
+.dashboard .timeline-legend {
+  display: flex; justify-content: center; gap: 24px;
+  padding-top: 20px; border-top: 1px solid rgba(15,23,42,0.06);
+}
+.dashboard .legend-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px;
+  background: rgba(15,23,42,0.02);
+  border-radius: 6px;
+  border: 1px solid rgba(15,23,42,0.04);
+  transition: all 0.2s ease;
+}
+.dashboard .legend-item:hover {
+  background: rgba(15,23,42,0.04);
+  border-color: rgba(15,23,42,0.08);
+  transform: translateY(-1px);
+}
+.dashboard .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.dashboard .legend-dot.low {     background: #1dc0ab; border: 1px solid #1dc0ab; }
+.dashboard .legend-dot.medium {  background: #facc15; border: 1px solid #facc15; }
+.dashboard .legend-dot.high {    background: #f97316; border: 1px solid #f97316; }
+.dashboard .legend-dot.critical{ background: #ef4444; border: 1px solid #ef4444; }
+.dashboard .legend-text { font-size: 0.75rem; color: #475569; font-weight: 500; text-transform: capitalize; }
+
+/* ===== Gauge (medidor semicircular) ===== */
+.dashboard .gauge-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 24px; padding-bottom: 16px;
+  border-bottom: 1px solid rgba(15,23,42,0.08);
+}
+.dashboard .gauge-title { font-weight: 600; margin: 0; color: #0f172a; font-size: 1.1rem; }
+.dashboard .gauge-status {
+  padding: 8px 16px; border-radius: 20px; font-size: 0.8rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.dashboard .gauge-container { margin-bottom: 24px; padding: 20px 0; }
+.dashboard .gauge-visual { display: flex; flex-direction: column; align-items: center; gap: 24px; }
+
+/* Área SVG do gauge */
+.dashboard .gauge-semicircle { position: relative; display: flex; align-items: center; justify-content: center; }
+.dashboard .gauge-main { position: relative; z-index: 2; filter: drop-shadow(0 4px 16px rgba(0,0,0,0.1)); }
+
+/* Animação do traçado de progresso do gauge */
+.dashboard .gauge-progress {
+  animation: gaugeProgress 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: center;
+}
+@keyframes gaugeProgress {
+  from { stroke-dasharray: 0 251.2; } /* começa sem traçado */
+  to   { stroke-dasharray: inherit; } /* assume o valor calculado */
+}
+
+/* Bloco com o número do score e legendas */
+.dashboard .gauge-score-container {
+  text-align: center;
+  padding: 20px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(248,250,252,0.9));
+  border-radius: 16px;
+  border: 1px solid rgba(15,23,42,0.08);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+  backdrop-filter: blur(8px);
+}
+.dashboard .gauge-score { font-size: 3rem; font-weight: 800; color: #0f172a; line-height: 1; margin-bottom: 8px; text-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+.dashboard .gauge-label { font-size: 0.9rem; color: #475569; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
+.dashboard .gauge-subtitle { font-size: 0.75rem; color: #64748b; font-weight: 500; }
+
+/* Lista de contagens por severidade dentro do gauge */
+.dashboard .gauge-severity {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 16px; padding-top: 24px; border-top: 1px solid rgba(15,23,42,0.08);
+}
+.dashboard .severity-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.8), rgba(248,250,252,0.8));
+  border-radius: 12px;
+  border: 1px solid rgba(15,23,42,0.06);
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+.dashboard .severity-item:hover {
+  background: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(248,250,252,0.95));
+  border-color: rgba(15,23,42,0.12);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+}
+
+/* Pontinhos coloridos de severidade (versão com gradiente) */
+.dashboard .severity-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 3px rgba(255,255,255,0.8); }
+.dashboard .severity-dot.critical { background: linear-gradient(135deg, #ef4444, #dc2626); box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.3); }
+.dashboard .severity-dot.high     { background: linear-gradient(135deg, #f97316, #ea580c); box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.3); }
+.dashboard .severity-dot.medium   { background: linear-gradient(135deg, #facc15, #eab308); box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.3); }
+.dashboard .severity-dot.low      { background: linear-gradient(135deg, #1dc0ab, #0d9488); box-shadow: 0 0 0 3px rgba(29, 192, 171, 0.3); }
+
+.dashboard .severity-text { font-size: 0.85rem; color: #374151; font-weight: 600; }
+
+/* ===== Responsividade do gauge ===== */
+@media (max-width: 768px) {
+  .dashboard .gauge-semicircle svg { width: 140px; height: 78px; } /* reduz SVG */
+  .dashboard .gauge-score { font-size: 2.5rem; }
+  .dashboard .gauge-label { font-size: 0.8rem; }
+  .dashboard .gauge-subtitle { font-size: 0.7rem; }
+  .dashboard .gauge-severity { grid-template-columns: 1fr; gap: 12px; } /* uma coluna */
+  .dashboard .severity-item { padding: 10px 14px; }
+}
+
+/* ===== Responsividade do timeline (título + botões) ===== */
+@media (max-width: 768px) {
+  .dashboard .timeline-title-row { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .dashboard .period-selector { align-self: flex-end; }
+  .dashboard .period-btn { padding: 4px 8px; font-size: 0.75rem; min-width: 36px; }
+}
+
+/* ===== Rodapé ===== */
 .dashboard .footer { padding: 24px 0; text-align: center; font-size: 15px; color: #1dc0ab; }
 
-/* ===== Espaçamento vertical ===== */
+/* ===== Espaçamento vertical entre cartões/listas ===== */
 .dashboard .space-y > * + * { margin-top: 50px; }
+
+/* ===== Versão “sólida” dos dots de severidade (sobrescreve gradientes acima) ===== */
+/* Observação: Estas regras vêm depois, então prevalecem (override) */
+.dashboard .severity-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+.dashboard .severity-dot.critical { background: #ef4444; box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2); }
+.dashboard .severity-dot.high     { background: #f97316; box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.2); }
+.dashboard .severity-dot.medium   { background: #facc15; box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.2); }
+.dashboard .severity-dot.low      { background: #1dc0ab; box-shadow: 0 0 0 2px rgba(29, 192, 171, 0.2); }
+
+/* ===== Variação menor do card do score (quando usado em outro contexto) ===== */
+.dashboard .gauge-score-container.small {
+  padding: 12px 14px;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+}
+.dashboard .gauge-score-container.small .gauge-score { font-size: 2.25rem; margin-bottom: 6px; }
+.dashboard .gauge-score-container.small .gauge-label { font-size: 0.75rem; letter-spacing: 1px; }
+.dashboard .gauge-score-container.small .gauge-subtitle { font-size: 0.7rem; }
+
+/* ===== Detalhes do alerta (painel expandido) ===== */
+.alert-details {
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: #f8fafc;                       /* leve destaque em cinza azulado */
+  border: 1px solid rgba(15,23,42,0.06);
+  border-radius: 10px;
+}
+
+/* ===== Lista de pares “chave : valor” ===== */
+.kv-dl { margin: 0; }
+
+.kv-pair {
+  display: flex; align-items: baseline;
+  gap: 8px; padding: 4px 0;                  /* separar cada linha */
+}
+.kv-pair dt {
+  width: 160px; min-width: 160px;            /* coluna fixa para as chaves */
+  font-weight: 600; color: #475569;          /* chave mais discreta */
+}
+.kv-pair dd {
+  margin: 0;
+  color: #0f172a;                            /* valor com cor principal */
+  word-break: break-word;                    /* evita overflow em valores longos */
+}
+@media (min-width: 1024px) { .kv-pair { padding: 6px 0; } }

@@ -1,25 +1,23 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-} from "recharts";
+
 import {
   listAlertHeaders,
-  getAlertDetails,
   filterAlerts,
   type FilterBody,
   type ApiAlertHeaderRaw,
 } from "../../api/alerts";
+
+import LinhaDoTempoAlertas from "./componentes/LinhaDoTempoAlertas";
+import MedidorDeRisco from "./componentes/MedidorDeRisco";
+import CartoesSeveridade from "./componentes/CartoesSeveridade";
+
+import { parseEmUtc, formatarDataUTC } from "./uteis/tempo";
+import type { Alerta, Severidade, Status, Intervalo } from "./tipos";
+
 import "./dashboard.css";
 
-// --- Normaliza erro do Axios/JS para string, evitando renderizar objetos no JSX
-function formatErr(e: any): string {
+/* ===================== Util/Erros ===================== */
+function formatarErro(e: any): string {
   if (!e) return "Erro desconhecido";
   if (typeof e === "string") return e;
   const msg = e?.response?.data?.message ?? e?.response?.data?.error ?? e?.message;
@@ -27,38 +25,30 @@ function formatErr(e: any): string {
   try { return JSON.stringify(msg ?? e); } catch { return String(e); }
 }
 
+/* ===================== Header ===================== */
+const Cabecalho: React.FC = () => (
+  <header className="dashboard-header" style={{ borderBottom: "1px solid #eef1f5", background: "#fff" }}>
+    <div className="header-container" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px" }}>
+      <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0f172a" }}>Dashboard</h2>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div className="user-avatar" style={{ width: 28, height: 28, borderRadius: 6, background: "#0ea5e9", color: "#fff", display: "grid", placeItems: "center", fontSize: 12, fontWeight: 700 }}>JC</div>
+        <span className="user-name" style={{ fontSize: 12, color: "#475569" }}>João Carlos</span>
+      </div>
+    </div>
+  </header>
+);
 
-/* ===================== Tipos de UI ===================== */
-type Severity = "crítica" | "alta" | "média" | "baixa";
-type Status = "aberta" | "em_progresso" | "fechada";
-
-type Alert = {
-  id: string;
-  title: string;
-  createdAt: string; // pode ser ISO ou dd/MM/yyyy HH:mm:ss (parser trata)
-  updatedAt?: string;
-  severity: Severity;
-  status: Status;
-  endpoint: string;
-  category: "ransomware" | "login_suspeito" | "software_bloqueado" | "outros";
-  score: number;
-  aiSummary?: string;
-  recommendations?: string[];
+/* ===================== Normalizadores / Mapeamentos ===================== */
+const paraISO = (v?: string | number) => {
+  if (v == null) return undefined;
+  if (typeof v === "number") {
+    const ms = v < 1e12 ? v * 1000 : v;
+    return new Date(ms).toISOString();
+  }
+  return v;
 };
 
-type TimelinePoint = {
-  hour: string;
-  baixa: number;
-  media: number;
-  alta: number;
-  critica: number;
-};
-
-/* ===================== Normalizadores ===================== */
-const toISO = (v?: string | number) =>
-  v == null ? undefined : typeof v === "number" ? new Date(v).toISOString() : v;
-
-const mapSeverity = (s?: string): Severity | undefined => {
+const mapearSeveridade = (s?: string): Severidade | undefined => {
   const v = s?.toLowerCase();
   if (!v) return undefined;
   if (v.startsWith("cr")) return "crítica";
@@ -68,7 +58,7 @@ const mapSeverity = (s?: string): Severity | undefined => {
   return undefined;
 };
 
-const mapStatus = (s?: string): Status | undefined => {
+const mapearStatus = (s?: string): Status | undefined => {
   const v = s?.toLowerCase();
   if (!v) return undefined;
   if (v.includes("progress")) return "em_progresso";
@@ -77,518 +67,376 @@ const mapStatus = (s?: string): Status | undefined => {
   return undefined;
 };
 
-const scoreBySeverity: Record<Severity, number> = {
+const pontuacaoPorSeveridade: Record<Severidade, number> = {
   crítica: 100,
   alta: 75,
   média: 50,
   baixa: 25,
 };
 
-function adaptHeaderToAlert(h: ApiAlertHeaderRaw): Alert {
-  const sev = mapSeverity(h.severidade) ?? "média";
+function adaptarHeaderParaAlerta(h: ApiAlertHeaderRaw): Alerta {
+  const sev = mapearSeveridade((h as any).severidade) ?? "média";
+  const dataEvento = (h as any).data_evento ?? (h as any).created_at;
+  const origem = (h as any).origem ?? (h as any).endpoint ?? "desconhecido";
   return {
-    id: h.alerta_id,
-    title: h.titulo || `Alerta ${h.alerta_id}`,
-    createdAt: (toISO(h.created_at) as string) || new Date().toISOString(),
-    updatedAt: toISO(h.updated_at),
+    id: (h as any).alerta_id,
+    title: (h as any).titulo || `Alerta ${(h as any).alerta_id}`,
+    createdAt: (paraISO(dataEvento) as string) || new Date().toISOString(),
+    updatedAt: paraISO((h as any).updated_at),
     severity: sev,
-    status: mapStatus(h.status) ?? "aberta",
-    endpoint: h.endpoint || "desconhecido",
-    category: (h.categoria as Alert["category"]) || "outros",
-    score: scoreBySeverity[sev],
+    status: mapearStatus((h as any).status) ?? "aberta",
+    endpoint: origem,
+    category: ((h as any).categoria as Alerta["category"]) || "outros",
+    score: pontuacaoPorSeveridade[sev],
   };
 }
 
-/* ===================== Timeline (24h) baseada em ALERTS adaptados ===================== */
-function toMillis(v?: string | number): number | null {
-  if (v == null) return null;
-  if (typeof v === "number") return v < 1e12 ? v * 1000 : v; // epoch s->ms
-  const iso = Date.parse(v); // tenta ISO
-  if (!Number.isNaN(iso)) return iso;
-  // fallback dd/MM/yyyy [HH:mm:ss]
-  const m = v.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:[ T](\d{2}):(\d{2}):(\d{2}))?/);
-  if (m) {
-    const [, dd, mm, yyyy, hh = "00", mi = "00", ss = "00"] = m;
-    return new Date(+yyyy, +mm - 1, +dd, +hh, +mi, +ss).getTime();
-  }
-  return null;
-}
-
-function buildTimeline24hFromAlerts(alerts: Alert[]): TimelinePoint[] {
-  const now = Date.now();
-  const start = now - 24 * 60 * 60 * 1000;
-
-  const bins: TimelinePoint[] = Array.from({ length: 24 }, (_, i) => {
-    const t = new Date(start + i * 60 * 60 * 1000);
-    const hour = `${String(t.getHours()).padStart(2, "0")}:00`;
-    return { hour, baixa: 0, media: 0, alta: 0, critica: 0 };
-  });
-
-  for (const a of alerts) {
-    const ms = toMillis(a.createdAt);
-    if (ms == null || ms < start || ms > now) continue;
-    const idx = Math.min(23, Math.max(0, Math.floor((ms - start) / (60 * 60 * 1000))));
-    if (a.severity === "baixa") bins[idx].baixa++;
-    else if (a.severity === "média") bins[idx].media++;
-    else if (a.severity === "alta") bins[idx].alta++;
-    else if (a.severity === "crítica") bins[idx].critica++;
-  }
-  return bins;
-}
-
-/* ===================== Risco (segue usando headers crus) ===================== */
-function computeRiskScoreFromHeaders(headers: ApiAlertHeaderRaw[]): number {
-  const w: Record<Severity, number> = {
-    crítica: 1.0,
-    alta: 0.7,
-    média: 0.4,
-    baixa: 0.2,
-  };
-  const sum = headers.reduce(
-    (acc, h) => acc + w[mapSeverity(h.severidade) ?? "média"],
-    0
-  );
+/* ===================== Risco ===================== */
+function calcularScoreRiscoDosHeaders(headers: ApiAlertHeaderRaw[]): number {
+  const w: Record<Severidade, number> = { crítica: 1.0, alta: 0.7, média: 0.4, baixa: 0.2 };
+  const sum = headers.reduce((acc, h: any) => acc + w[mapearSeveridade(h.severidade) ?? "média"], 0);
   return Math.max(0, Math.min(100, Math.round((sum / 10) * 100)));
 }
 
 /* ===================== Helpers visuais ===================== */
-function severityClass(s: Severity) {
-  switch (s) {
-    case "crítica":
-      return "badge-critical";
-    case "alta":
-      return "badge-high";
-    case "média":
-      return "badge-medium";
-    default:
-      return "badge-low";
-  }
+function classeSeveridade(s: Severidade) {
+  switch (s) { case "crítica": return "badge-critical"; case "alta": return "badge-high"; case "média": return "badge-medium"; default: return "badge-low"; }
 }
-function statusLabel(s: Status) {
-  return s
-    .replace("em_progresso", "Em Progresso")
-    .replace("aberta", "Aberta")
-    .replace("fechada", "Fechada");
-}
-function statusClass(s: Status) {
-  switch (s) {
-    case "em_progresso":
-      return "status-progress";
-    case "fechada":
-      return "status-closed";
-    default:
-      return "status-open";
-  }
-}
+function rotuloStatus(s: Status) { return s.replace("em_progresso", "Em Progresso").replace("aberta", "Aberta").replace("fechada", "Fechada"); }
+function classeStatus(s: Status) { switch (s) { case "em_progresso": return "status-progress"; case "fechada": return "status-closed"; default: return "status-open"; } }
 
 /* ===================== UI Primitives ===================== */
-const Card: React.FC<{ className?: string; children: React.ReactNode }> = ({
-  className = "",
-  children,
-}) => <div className={`card ${className}`}>{children}</div>;
+const Cartao: React.FC<{ className?: string; children: React.ReactNode }> = ({ className = "", children }) =>
+  <div className={`card ${className}`}>{children}</div>;
 
-const StatCard: React.FC<{
-  title: string;
-  value: React.ReactNode;
-  subtitle?: string;
-  icon?: React.ReactNode;
-}> = ({ title, value, subtitle, icon }) => (
-  <Card>
-    <div className="row">
-      {icon && <div>{icon}</div>}
-      <div>
-        <div className="stat-title">{title}</div>
-        <div className="stat-value">{value}</div>
-        {subtitle ? <div className="stat-sub">{subtitle}</div> : null}
-      </div>
-    </div>
-  </Card>
+const CartaoIndicador: React.FC<{ title: string; value: React.ReactNode; subtitle?: string; }> = ({ title, value, subtitle }) => (
+  <div className="card" style={{ padding: 18, borderRadius: 14, background: "rgba(255,255,255,0.65)", backdropFilter: "blur(8px)", border: "1px solid rgba(15,23,42,0.06)" }}>
+    <div style={{ color: "#64748b", fontSize: 12, fontWeight: 700, letterSpacing: 0.3 }}>{title}</div>
+    <div style={{ fontSize: 26, fontWeight: 800, color: "#0f172a", marginTop: 6 }}>{value}</div>
+    {subtitle ? <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 4 }}>{subtitle}</div> : null}
+  </div>
 );
 
-/* ===================== FilterBar ===================== */
-const FilterBar: React.FC<{ onApply: (filters: any) => void }> = ({ onApply }) => {
-  const [start, setStart] = useState<string>(
-    new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString().slice(0, 10)
-  );
-  const [end, setEnd] = useState<string>(new Date().toISOString().slice(0, 10));
+/* ===================== Conversão de DATA (sem hora) ===================== */
+// "2025-09-01" -> "2025-09-01T00:00:00Z"
+function dataLocalParaUTCInicio(v?: string): string | undefined {
+  if (!v) return undefined;
+  const d = new Date(`${v}T00:00:00Z`);
+  return d.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+// "2025-09-01" -> "2025-09-01T23:59:59Z"
+function dataLocalParaUTCFim(v?: string): string | undefined {
+  if (!v) return undefined;
+  const d = new Date(`${v}T23:59:59Z`);
+  return d.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+/* ===================== Barra de Filtros ===================== */
+const BarraFiltros: React.FC<{ onApply: (filters: any) => void }> = ({ onApply }) => {
   const [severity, setSeverity] = useState<string>("todas");
-  const [status, setStatus] = useState<string>("todos");
-  const [endpoint, setEndpoint] = useState<string>("todos");
-  const [q, setQ] = useState("");
+  const [origem, setOrigem] = useState<string>("todas");
+  const [inicio, setInicio] = useState<string>("");
+  const [fim, setFim] = useState<string>("");
+
+  const limpar = () => { setSeverity("todas"); setOrigem("todas"); setInicio(""); setFim(""); };
 
   return (
-    <Card>
-      <div className="filter-bar">
-        <div className="field">
-          <label className="label">Data Início</label>
-          <input
-            type="date"
-            value={start}
-            onChange={(e) => setStart(e.target.value)}
-            className="input"
-          />
-        </div>
-        <div className="field">
-          <label className="label">Data Fim</label>
-          <input
-            type="date"
-            value={end}
-            onChange={(e) => setEnd(e.target.value)}
-            className="input"
-          />
-        </div>
+    <Cartao>
+      <div className="filter-bar" style={{ gap: 12 }}>
         <div className="field">
           <label className="label">Severidade</label>
-          <select
-            value={severity}
-            onChange={(e) => setSeverity(e.target.value)}
-            className="select"
-          >
-            <option value="todas">Todas</option>
-            <option value="crítica">Crítica</option>
-            <option value="alta">Alta</option>
-            <option value="média">Média</option>
-            <option value="baixa">Baixa</option>
+          <select value={severity} onChange={(e) => setSeverity(e.target.value)} className="select">
+            <option value="todas">Todas</option><option value="crítica">Crítica</option><option value="alta">Alta</option><option value="média">Média</option><option value="baixa">Baixa</option>
           </select>
         </div>
         <div className="field">
-          <label className="label">Status</label>
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            className="select"
-          >
-            <option value="todos">Todos</option>
-            <option value="aberta">Aberta</option>
-            <option value="em_progresso">Em Progresso</option>
-            <option value="fechada">Fechada</option>
+          <label className="label">Origem</label>
+          <select value={origem} onChange={(e) => setOrigem(e.target.value)} className="select">
+            <option value="todas">Todas</option><option value="Firewall">Firewall</option><option value="AD">AD</option><option value="Endpoint">Endpoint</option><option value="Antivírus">Antivírus</option>
           </select>
         </div>
         <div className="field">
-          <label className="label">Endpoint</label>
-          <select
-            value={endpoint}
-            onChange={(e) => setEndpoint(e.target.value)}
-            className="select"
-          >
-            <option value="todos">Todos</option>
-            <option value="server-web-01">server-web-01</option>
-            <option value="api-gateway">api-gateway</option>
-            <option value="finops-workstation-05">finops-workstation-05</option>
-          </select>
+          <label className="label">Início</label>
+          <input type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} className="input" />
         </div>
-        <div className="field flex-1">
-          <label className="label">Buscar</label>
-          <input
-            placeholder="Palavra-chave, ID ou host"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            className="input"
-          />
+        <div className="field">
+          <label className="label">Fim</label>
+          <input type="date" value={fim} onChange={(e) => setFim(e.target.value)} className="input" />
         </div>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          <button
-            onClick={() => {
-              setQ("");
-              setSeverity("todas");
-              setStatus("todos");
-              setEndpoint("todos");
-            }}
-            className="btn btn-outline"
-          >
-            Limpar Filtros
-          </button>
-          <button
-            onClick={() => onApply({ start, end, severity, status, endpoint, q })}
-            className="btn btn-primary"
-          >
-            Aplicar
-          </button>
+          <button onClick={limpar} className="btn btn-outline">Limpar</button>
+          <button onClick={() => onApply({ severity, origem, inicio, fim })} className="btn btn-primary">Aplicar</button>
         </div>
       </div>
-    </Card>
+    </Cartao>
   );
 };
 
-/* ===================== AlertItem ===================== */
-const AlertItem: React.FC<{ alert: Alert }> = ({ alert }) => {
-  const [open, setOpen] = useState(false);
-  const [detail, setDetail] = useState<any | null>(null);
-  const [loading, setLoading] = useState(false);
+/* ===================== DetalhesDoAlerta ===================== */
+const DetalhesDoAlerta: React.FC<{
+  item: Alerta;
+  raw?: ApiAlertHeaderRaw;
+}> = ({ item }) => {
+  return (
+    <div className="alert-details">
+      <div className="kv-grid compact">
+        <div className="kv"><div className="k">ID:</div><div className="v">{item.id}</div></div>
+        <div className="kv"><div className="k">Título:</div><div className="v">{item.title}</div></div>
+        <div className="kv"><div className="k">Origem:</div><div className="v">{item.endpoint}</div></div>
+        <div className="kv"><div className="k">Categoria:</div><div className="v">{item.category ?? "—"}</div></div>
+        <div className="kv"><div className="k">Detecção (UTC):</div><div className="v">{formatarDataUTC(item.createdAt)}</div></div>
+        <div className="kv"><div className="k">Atualizado:</div><div className="v">{item.updatedAt ? formatarDataUTC(item.updatedAt) : "—"}</div></div>
+      </div>
+    </div>
+  );
+};
 
-  const toggle = async () => {
-    const willOpen = !open;
-    setOpen(willOpen);
-    if (willOpen && !detail) {
-      try {
-        setLoading(true);
-        const d = await getAlertDetails(alert.id);
-        setDetail(d);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    }
-  };
+/* ===================== Linha do Alerta (UTC) ===================== */
+const LinhaAlerta: React.FC<{ item: Alerta; raw?: ApiAlertHeaderRaw }> = ({ item, raw }) => {
+  const [open, setOpen] = useState(false);
+  const alternar = () => setOpen(v => !v);
+  const h: any = raw ?? {};
+  const id = h.alerta_id ?? item.id;
+  const cliente = h.cliente_id ?? "—";
+  const origem = h.origem ?? item.endpoint ?? "—";
+  const quando = h.data_evento ?? item.createdAt;
 
   return (
-    <Card className={`alert-card ${open ? "is-open" : ""}`}>
-      <div className="alert-head clickable" onClick={toggle} role="button" tabIndex={0}>
-        <span className={`badge ${severityClass(alert.severity)}`}>
-          {alert.severity.toUpperCase()}
-        </span>
-
-        <div style={{ flex: 1 }}>
-          <div className="row-between">
-            <div>
-              <h4 style={{ margin: 0, fontWeight: 600 }}>{alert.title}</h4>
-              <div className="alert-meta">
-                <span>ID: {alert.id}</span>
-                <span>HOST: {alert.endpoint}</span>
-                <span>Primeira detecção: {new Date(alert.createdAt).toLocaleString()}</span>
-                {alert.updatedAt && (
-                  <span>Última atualização: {new Date(alert.updatedAt).toLocaleString()}</span>
-                )}
-              </div>
-            </div>
-            <div className="alert-actions">
-              <span className={`badge ${statusClass(alert.status)}`}>
-                {statusLabel(alert.status)}
-              </span>
+    <div className="card" style={{ padding: 14, borderRadius: 12, border: "1px solid rgba(15,23,42,0.06)", background: "#fff" }}>
+      <div className="row-between" style={{ alignItems: "center", gap: 12, cursor: "pointer" }} onClick={alternar}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span className={`badge ${classeSeveridade(item.severity)}`}>{item.severity.toUpperCase()}</span>
+          <div>
+            <div style={{ fontWeight: 700, color: "#0f172a" }}>{item.title}</div>
+            <div className="alert-meta">
+              <span>ID: {id}</span><span>Cliente: {cliente}</span><span>Origem: {origem}</span>
+              <span>Detecção: {formatarDataUTC(quando)}</span>
+              {item.updatedAt && <span>Atualizado: {formatarDataUTC(item.updatedAt)}</span>}
             </div>
           </div>
         </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }} onClick={(e) => e.stopPropagation()}>
+          <span className={`badge ${classeStatus(item.status)}`}>{rotuloStatus(item.status)}</span>
+        </div>
       </div>
 
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            key="content"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.22 }}
-            className="alert-body"
-          >
-            {loading && <p>Carregando detalhe…</p>}
-            {!loading && detail && (
-              <pre style={{ margin: 0, whiteSpace: "pre-wrap" }}>
-                {JSON.stringify(detail, null, 2)}
-              </pre>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </Card>
-  );
-};
-
-/* ===================== Timeline (BarChart) ===================== */
-const AlertTimeline: React.FC<{ data: TimelinePoint[] }> = ({ data }) => (
-  <Card>
-    <h3 className="section-title">Linha do Tempo de Alertas (últimas 24h)</h3>
-    <div style={{ height: 224 }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-          <XAxis dataKey="hour" tick={{ fill: "#475569", fontSize: 12 }} tickLine={false} />
-          <YAxis tick={{ fill: "#475569", fontSize: 12 }} tickLine={false} allowDecimals={false} />
-          <Tooltip
-            contentStyle={{
-              background: "#111b36",
-              border: "1px solid rgba(255,255,255,0.12)",
-              borderRadius: 12,
-              color: "#ffffff",
-            }}
-          />
-          <Bar dataKey="baixa" stackId="a" fill="#1dc0ab" />
-          <Bar dataKey="media" stackId="a" fill="#f4c542" />
-          <Bar dataKey="alta" stackId="a" fill="#f58a1f" />
-          <Bar dataKey="critica" stackId="a" fill="#ef4444" />
-        </BarChart>
-      </ResponsiveContainer>
+      {open && (
+        <DetalhesDoAlerta item={item} raw={raw} />
+      )}
     </div>
-  </Card>
-);
-
-/* ===================== Gauge ===================== */
-const RiskGauge: React.FC<{ score: number }> = ({ score }) => {
-  const r = 80;
-  const c = Math.PI * r;
-  const pct = Math.max(0, Math.min(100, score));
-  const filled = (pct / 100) * c;
-
-  return (
-    <Card>
-      <h3 className="gauge-title">Nível de Risco Atual</h3>
-      <svg width={220} height={140} viewBox="0 0 220 140">
-        <g transform="translate(110,120)">
-          <path d={`M ${-r} 0 A ${r} ${r} 0 0 1 ${r} 0`} fill="none" stroke="rgba(0, 0, 0, 0.15)" strokeWidth={18} />
-          <path
-            d={`M ${-r} 0 A ${r} ${r} 0 0 1 ${-r + 2 * r * (pct / 100)} 0`}
-            fill="none"
-            stroke="url(#g)"
-            strokeWidth={18}
-            strokeLinecap="round"
-            pathLength={c}
-            strokeDasharray={`${filled} ${c - filled}`}
-          />
-          <defs>
-            <linearGradient id="g" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#22c55e" />
-              <stop offset="50%" stopColor="#f59e0b" />
-              <stop offset="100%" stopColor="#ef4444" />
-            </linearGradient>
-          </defs>
-        </g>
-      </svg>
-      <div className="gauge-score">
-        <div className="val">{score}</div>
-        <div className="sub">Risco Médio-Alto</div>
-      </div>
-    </Card>
   );
 };
 
 /* ===================== Helpers de filtro/back ===================== */
-function toServerFilterBody(f: any): FilterBody {
-  const body: FilterBody = {} as any;
-  if (f.severity && f.severity !== "todas") (body as any).severidade = f.severity;
-  if (f.start) (body as any).data_inicio = `${f.start}T00:00:00Z`;
-  if (f.end) (body as any).data_fim = `${f.end}T23:59:59Z`;
-  if (f.endpoint && f.endpoint !== "todos") (body as any).hostname = f.endpoint;
-  return body;
+function severidadeParaServidor(s: string) {
+  const base = s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  if (base === "critica") return "Crítico";
+  if (base === "alta") return "Alto";
+  if (base === "media") return "Médio";
+  if (base === "baixa") return "Baixo";
+  return s;
 }
-function isServerFilterable(f: any | null): boolean {
+function origemParaServidor(s: string) {
+  const base = s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (base === "Antivirus") return "Antivirus";
+  return s;
+}
+function corpoFiltroParaServidor(f: any): FilterBody {
+  const body: any = {};
+  if (Array.isArray(f?.severity)) {
+    const arr = f.severity.filter(Boolean).map((s: string) => severidadeParaServidor(s));
+    if (arr.length) body.severidade = arr;
+  } else if (f?.severity && f.severity !== "todas") {
+    body.severidade = severidadeParaServidor(f.severity);
+  }
+  if (f?.origem && f.origem !== "todas") body.ferramenta = origemParaServidor(f.origem);
+
+  // datas (sem hora)
+  const di = dataLocalParaUTCInicio(f?.inicio);
+  const df = dataLocalParaUTCFim(f?.fim);
+  if (di) body.data_inicio = di;
+  if (df) body.data_fim = df;
+
+  console.log("POST /filtrar body =>", body);
+  return body as FilterBody;
+}
+function deveFiltrarNoServidor(f: any | null): boolean {
   if (!f) return false;
-  return (
-    (f.severity && f.severity !== "todas") ||
-    (f.endpoint && f.endpoint !== "todos") ||
-    !!f.start ||
-    !!f.end
-  );
+  const hasSeverity = Array.isArray(f.severity) ? f.severity.length > 0 : (f.severity && f.severity !== "todas");
+  const hasOrigem = f.origem && f.origem !== "todas";
+  return !!(hasSeverity || hasOrigem || f.inicio || f.fim);
 }
 
 /* ===================== Página ===================== */
-const DashboardPage: React.FC = () => {
+const PaginaDashboard: React.FC = () => {
   const [headers, setHeaders] = useState<ApiAlertHeaderRaw[]>([]);
   const [filters, setFilters] = useState<any | null>(null);
+  const [selSeveridades, setSelSeveridades] = useState<Severidade[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // card expandível do período filtrado
+  const [rangeOpen, setRangeOpen] = useState(false);
+
+  const toggleSeverityChip = (s: Severidade) => {
+    setSelSeveridades(prev => {
+      const exists = prev.includes(s);
+      return exists ? prev.filter(x => x !== s) : [...prev, s];
+    });
+  };
+
   useEffect(() => {
-    let cancel = false;
+    let cancelado = false;
     (async () => {
       try {
         setLoading(true);
         setErr(null);
-
-        let data: ApiAlertHeaderRaw[];
-        if (filters && isServerFilterable(filters)) {
-          data = await filterAlerts(toServerFilterBody(filters));
+        let data: ApiAlertHeaderRaw[] = [];
+        if (filters && deveFiltrarNoServidor(filters)) {
+          const body = corpoFiltroParaServidor(filters);
+          data = await filterAlerts(body);
+          console.log("RETORNO /filtrar =>", Array.isArray(data) ? `${data.length} itens` : data, (data as any)?.[0]);
         } else {
           data = await listAlertHeaders();
+          console.log("RETORNO /alerta (lista) =>", Array.isArray(data) ? `${data.length} itens` : data, (data as any)?.[0]);
         }
-
-        if (!cancel) setHeaders(data);
+        if (!cancelado) setHeaders(data);
       } catch (e: any) {
-        if (!cancel) setErr(formatErr(e));
+        if (!cancelado) setErr(formatarErro(e));
       } finally {
-        if (!cancel) setLoading(false);
+        if (!cancelado) setLoading(false);
       }
     })();
-    return () => {
-      cancel = true;
+    return () => { cancelado = true; };
+  }, [filters]);
+
+  const alerts = useMemo(() => headers.map(adaptarHeaderParaAlerta), [headers]);
+  const riskScore = useMemo(() => calcularScoreRiscoDosHeaders(headers), [headers]);
+
+  const selectedRange = useMemo<Intervalo>(() => {
+    if (!filters) return {};
+    return {
+      start: filters?.inicio ? dataLocalParaUTCInicio(filters.inicio) : undefined,
+      end:   filters?.fim    ? dataLocalParaUTCFim(filters.fim)       : undefined,
     };
   }, [filters]);
 
-  // filtro adicional no front (status + busca livre + endpoint/severity quando vieram "sem back")
-  const filteredRaw = useMemo(() => {
-    const base = headers;
-    if (!filters) return base;
-
-    return base.filter((h) => {
-      const sev = mapSeverity(h.severidade);
-      const st = mapStatus(h.status);
-
-      if (filters.severity && filters.severity !== "todas" && sev !== filters.severity) return false;
-      if (filters.status && filters.status !== "todos" && st !== filters.status) return false;
-      if (filters.endpoint && filters.endpoint !== "todos" && h.endpoint !== filters.endpoint) return false;
-      if (filters.q) {
-        const q = String(filters.q).toLowerCase();
-        const inTitle = (h.titulo || "").toLowerCase().includes(q);
-        const inId = (h.alerta_id || "").toLowerCase().includes(q);
-        const inHost = (h.endpoint || "").toLowerCase().includes(q);
-        if (!inTitle && !inId && !inHost) return false;
-      }
-
-      if (filters.start || filters.end) {
-        const d = h.created_at ? new Date(h.created_at) : null;
-        if (d) {
-          if (filters.start && d < new Date(filters.start)) return false;
-          if (filters.end) {
-            const end = new Date(filters.end);
-            end.setHours(23, 59, 59, 999);
-            if (d > end) return false;
-          }
-        }
-      }
-      return true;
-    });
-  }, [headers, filters]);
-
-  const alerts: Alert[] = useMemo(() => filteredRaw.map(adaptHeaderToAlert), [filteredRaw]);
-  const timeline = useMemo(() => buildTimeline24hFromAlerts(alerts), [alerts]);
-  const riskScore = useMemo(() => computeRiskScoreFromHeaders(filteredRaw), [filteredRaw]);
+  const rangeAtivo = !!(selectedRange.start || selectedRange.end);
+  useEffect(() => { setRangeOpen(rangeAtivo); }, [rangeAtivo]);
 
   const totals = useMemo(() => {
-    const total = alerts.length;
-    const criticos = alerts.filter((a) => a.severity === "crítica").length;
-    const resolucao = 0.94; // TODO: calcular com base no status
-    const tmr = 12;         // idem
+    const pStart = selectedRange.start ? parseEmUtc(selectedRange.start) : null;
+    const pEnd   = selectedRange.end   ? parseEmUtc(selectedRange.end)   : null;
+    const inPeriodo = (a: Alerta) => {
+      const t = parseEmUtc(a.createdAt);
+      if (t == null) return false;
+      if (pStart != null && t < pStart) return false;
+      if (pEnd != null && t > pEnd) return false;
+      return true;
+    };
+    const noPeriodo = (pStart || pEnd) ? alerts.filter(inPeriodo) : alerts;
+
+    const total = noPeriodo.length;
+    const criticos = noPeriodo.filter((a) => a.severity === "crítica").length;
+
+    const now = Date.now();
+    const SEVEN = 7 * 24 * 60 * 60 * 1000;
+    const start7 = now - SEVEN;
+    const last7 = alerts.filter(a => {
+      const t = parseEmUtc(a.createdAt);
+      return t != null && t >= start7 && t <= now;
+    });
+    const fechados = last7.filter(a => a.status === "fechada");
+    const resolucao = last7.length ? fechados.length / last7.length : 0;
+
+    const fechadosComTempo = fechados.filter(a => a.updatedAt);
+    const avgMs = fechadosComTempo.length
+      ? Math.round(
+          fechadosComTempo.reduce((acc, a) => {
+            const s = parseEmUtc(a.createdAt) ?? 0;
+            const e = parseEmUtc(a.updatedAt!) ?? s;
+            return acc + Math.max(0, e - s);
+          }, 0) / fechadosComTempo.length
+        )
+      : 0;
+    const tmr = Math.round(avgMs / (60 * 60 * 1000));
+
     return { total, criticos, resolucao, tmr };
-  }, [alerts]);
+  }, [alerts, selectedRange]);
 
   return (
     <div className="dashboard">
+      <Cabecalho />
       <div className="dashboard-container">
         {loading && <p>Carregando…</p>}
         {err && <p style={{ color: "tomato" }}>{err}</p>}
 
-        {/* Stats */}
-        <div className="stats-grid">
-          <StatCard
-            title="Alertas Hoje"
-            value={
-              <span>
-                {totals.total}{" "}
-                <span style={{ color: "#b1b5c0", fontSize: 12 }}>(+22% vs ontem)</span>
-              </span>
-            }
-          />
-          <StatCard title="Críticos Abertos" value={<span>{totals.criticos}</span>} subtitle="2 novos" />
-          <StatCard title="Taxa de Resolução" value={<span>{Math.round(totals.resolucao * 100)}%</span>} subtitle="+1% esta semana" />
-          <StatCard title="Tempo Médio Resposta" value={<span>{totals.tmr}m</span>} subtitle="12m na média" />
+        {/* KPIs */}
+        <div className="stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14, marginBottom: 18 }}>
+          <CartaoIndicador title="Alertas (período)" value={<span>{totals.total}</span>} subtitle="Com base no período ativo" />
+          <CartaoIndicador title="Críticos abertos" value={<span>{totals.criticos}</span>} subtitle="estado atual" />
+          <CartaoIndicador title="Taxa de resolução" value={<span>{Math.round(totals.resolucao * 100)}%</span>} subtitle="7 dias" />
         </div>
 
         {/* Filtros */}
-        <FilterBar onApply={setFilters} />
+        <BarraFiltros onApply={setFilters} />
 
-        {/* Timeline + Gauge */}
-        <div className="cards-3">
-          <AlertTimeline data={timeline} />
-          <RiskGauge score={riskScore} />
+        {/* Cartões de severidade (contagens + expansão de abertos) */}
+        <CartoesSeveridade
+          alerts={alerts}
+          renderItem={(a) => <LinhaAlerta item={a} />}
+        />
+
+        {/* CARD EXPANDÍVEL: Gráfico do período filtrado */}
+        {rangeAtivo && (
+          <>
+            <div className="row-between" style={{ margin: "10px 0 6px", alignItems: "center" }}>
+              <h4 className="section-title" style={{ margin: 0, fontSize: 14, color: "#475569" }}>
+                Gráfico do Período Filtrado
+              </h4>
+              <button className="btn btn-outline" onClick={() => setRangeOpen(o => !o)}>
+                {rangeOpen ? "Recolher" : "Expandir"}
+              </button>
+            </div>
+            {rangeOpen && (
+              <LinhaDoTempoAlertas
+                alerts={alerts}
+                range={selectedRange}
+                severidadesSelecionadas={selSeveridades}
+                aoAlternarSeveridade={(s) => {
+                  const exists = selSeveridades.includes(s);
+                  setSelSeveridades(exists ? selSeveridades.filter(x => x !== s) : [...selSeveridades, s]);
+                }}
+              />
+            )}
+          </>
+        )}
+
+        {/* Timeline principal (sempre relativa) + gauge */}
+        <div className="cards-3" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 18 }}>
+          <LinhaDoTempoAlertas
+            alerts={alerts}
+            severidadesSelecionadas={selSeveridades}
+            aoAlternarSeveridade={toggleSeverityChip}
+          />
+          <MedidorDeRisco
+            score={riskScore}
+            alerts={alerts}
+            severidadesSelecionadas={selSeveridades}
+            aoDefinirSomente={(s) => {
+              const next = s ? [s] as Severidade[] : [];
+              setSelSeveridades(next);
+            }}
+          />
         </div>
 
         {/* Lista */}
-        <h3 className="section-title" style={{ marginTop: 20 }}>
-          Alertas Recentes
-        </h3>
-        <div className="space-y">
-          {alerts.map((a) => (
-            <AlertItem key={a.id} alert={a} />
-          ))}
+        <h3 className="section-title" style={{ marginTop: 20 }}>Alertas Recentes</h3>
+        <div className="space-y" style={{ display: "grid", gap: 12 }}>
+          {headers.map((h: any) => {
+            const a = adaptarHeaderParaAlerta(h);
+            return <LinhaAlerta key={a.id} item={a} raw={h} />;
+          })}
         </div>
 
         <div className="footer">Safeteer</div>
@@ -597,4 +445,4 @@ const DashboardPage: React.FC = () => {
   );
 };
 
-export default DashboardPage;
+export default PaginaDashboard;
