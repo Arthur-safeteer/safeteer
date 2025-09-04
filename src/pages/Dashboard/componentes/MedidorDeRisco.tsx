@@ -9,7 +9,6 @@ type Props = {
 };
 
 const MedidorDeRisco: React.FC<Props> = ({ score, alerts, severidadesSelecionadas, aoDefinirSomente }) => {
-  const pct = Math.max(0, Math.min(100, score));
   const cores = { baixa: "#10b981", média: "#facc15", alta: "#f97316", crítica: "#ef4444" } as const;
   const color = score <= 25 ? cores.baixa : score <= 50 ? "#f59e0b" : score <= 75 ? cores.alta : cores.crítica;
   const nivel = score <= 25 ? "Baixo" : score <= 50 ? "Médio" : score <= 75 ? "Médio-Alto" : "Alto";
@@ -63,9 +62,9 @@ const MedidorDeRisco: React.FC<Props> = ({ score, alerts, severidadesSelecionada
 
       <div className="gauge-severity">
         <div className="severity-item" style={chip(isOnly("crítica"))} onClick={() => aoDefinirSomente(isOnly("crítica") ? null : "crítica")}><div className="severity-dot critical" /><span>Crítico: {cont.crítica}</span></div>
-        <div className="severity-item" style={chip(isOnly("alta"))}    onClick={() => aoDefinirSomente(isOnly("alta") ? null : "alta")}><div className="severity-dot high" /><span>Alto: {cont.alta}</span></div>
-        <div className="severity-item" style={chip(isOnly("média"))}   onClick={() => aoDefinirSomente(isOnly("média") ? null : "média")}><div className="severity-dot medium" /><span>Médio: {cont.média}</span></div>
-        <div className="severity-item" style={chip(isOnly("baixa"))}   onClick={() => aoDefinirSomente(isOnly("baixa") ? null : "baixa")}><div className="severity-dot low" /><span>Baixo: {cont.baixa}</span></div>
+        <div className="severity-item" style={chip(isOnly("alta"))} onClick={() => aoDefinirSomente(isOnly("alta") ? null : "alta")}><div className="severity-dot high" /><span>Alto: {cont.alta}</span></div>
+        <div className="severity-item" style={chip(isOnly("média"))} onClick={() => aoDefinirSomente(isOnly("média") ? null : "média")}><div className="severity-dot medium" /><span>Médio: {cont.média}</span></div>
+        <div className="severity-item" style={chip(isOnly("baixa"))} onClick={() => aoDefinirSomente(isOnly("baixa") ? null : "baixa")}><div className="severity-dot low" /><span>Baixo: {cont.baixa}</span></div>
       </div>
     </div>
   );

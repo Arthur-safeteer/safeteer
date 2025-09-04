@@ -1,26 +1,67 @@
 /* -------- Layout (SignIN) -------- */
 .screen.signin{
   min-height:100vh; display:flex; align-items:center; justify-content:center;
-  background:var(--bg); color:#000; padding:24px;
+  background:var(--bg); color:var(--text); padding:24px;
   font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
 }
 .signin .card{
-  width:100%; max-width:560px; background:linear-gradient(180deg,#ffffff, #fbfeff 60%);
-  border:1px solid rgba(15,23,42,.06); border-radius:var(--r-lg);
+  width:100%; max-width:560px; background:var(--surface);
+  border:1px solid var(--outline); border-radius:var(--r-lg);
   padding:32px; box-shadow:var(--shadow-lg); isolation:isolate;
   backdrop-filter:saturate(1.1);
 }
 .signin .pop-in{ animation:pop .36s cubic-bezier(.2,.8,.2,1) both; }
 @keyframes pop{ from{opacity:0; transform:translateY(6px) scale(.98);} to{opacity:1; transform:none;} }
 
-.signin .header{ margin-bottom:12px; }
-.signin .title{ margin:0; font-size:28px; font-weight:900; color:var(--text); letter-spacing:.2px; }
-.signin .subtitle{ margin:6px 0 0; font-size:13px; color:var(--muted); }
+.signin .header{ 
+  margin-bottom:12px; 
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+/* ===== Logo ===== */
+.signin .logo-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 80px;
+  margin-bottom: 8px;
+}
+
+.signin .logo-image {
+  height: 80px;
+  width: auto;
+  max-width: 200px;
+  object-fit: contain;
+  transition: all 0.3s ease;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
+}
+
+.signin .logo-image:hover {
+  transform: scale(1.02);
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.15));
+}
+
+.signin .title{ 
+  margin:0; 
+  font-size:28px; 
+  font-weight:900; 
+  color:var(--text); 
+  letter-spacing:.2px; 
+}
+.signin .subtitle{ 
+  margin:6px 0 0; 
+  font-size:13px; 
+  color:var(--muted); 
+}
 
 /* -------- Tabs (com indicador) -------- */
 .signin .tabs{
   position:relative; display:grid; grid-template-columns:1fr 1fr; gap:var(--gap);
-  background:linear-gradient(180deg, rgba(15,23,42,.04), rgba(15,23,42,.06));
+  background:var(--bg-secondary);
   padding:var(--pad); border-radius:calc(var(--r)+2px);
   margin:22px 0 14px; overflow:hidden;
 }
@@ -35,7 +76,7 @@
 .signin .tabs.is-register .tabIndicator{ transform:translateX(calc(100% + var(--gap))); }
 .signin .tabButton{
   position:relative; z-index:1; height:42px; border-radius:var(--r);
-  border:1px solid var(--outline); background:transparent; font-weight:800; color:#0b1220;
+  border:1px solid var(--outline); background:transparent; font-weight:800; color:var(--text);
   transition:color .12s, transform .08s;
 }
 .signin .tabButton:active{ transform:translateY(1px); }
@@ -60,12 +101,12 @@
 .signin .input{
   width:100%; height:46px; border-radius:var(--r);
   padding:11px 12px; font-size:.97rem;
-  border:1px solid var(--outline); background:linear-gradient(180deg, #f7fafc, #f3f6f8);
+  border:1px solid var(--outline); background:var(--bg-secondary);
   color:var(--text);
   transition: box-shadow .16s, border-color .16s, transform .08s, background .16s;
 }
 .signin .input.withToggle{ padding-right:44px; }
-.signin .input:focus{ box-shadow:0 0 0 3px rgba(29,192,171,.35); border-color:var(--p2); background:#fff; }
+.signin .input:focus{ box-shadow:0 0 0 3px rgba(29,192,171,.35); border-color:var(--p2); background:var(--surface); }
 .signin .input:active{ transform:translateY(1px); }
 
 .signin .inputWrap{ position:relative; }
@@ -74,7 +115,7 @@
   display:grid; place-items:center; width:36px; height:36px; border-radius:8px;
   background:transparent; color:var(--text); border:0;
 }
-.signin .togglePass:hover{ background:rgba(15,23,42,.06); }
+.signin .togglePass:hover{ background:var(--bg-secondary); }
 
 .signin .error{ color:#ef4444; font-size:12px; }
 
@@ -86,10 +127,76 @@
 .signin .btn:disabled{ background:#a7cfc8; color:#fff; cursor:not-allowed; box-shadow:none; }
 
 /* leve realce para borda do cartão ao focar em campos */
-.signin .card:focus-within{ box-shadow:0 28px 56px rgba(2,6,23,.26); border-color:rgba(15,23,42,.12); }
+.signin .card:focus-within{ box-shadow:0 28px 56px rgba(0,0,0,0.15); border-color:var(--outline); }
 
 /* -------- Hint -------- */
 .signin .hint{ margin-top:14px; font-size:12px; color:var(--muted); text-align:center; }
+
+/* -------- Modo Escuro -------- */
+.screen.signin.dark {
+  background: var(--bg);
+}
+
+.screen.signin.dark .card {
+  background: var(--surface);
+  border-color: var(--outline);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+}
+
+.screen.signin.dark .tabs {
+  background: var(--bg-secondary);
+}
+
+/* -------- Responsividade -------- */
+@media (max-width: 640px) {
+  .signin .card{ padding:24px; }
+  .signin .logo-container {
+    height: 60px;
+  }
+  .signin .logo-image {
+    height: 60px;
+    max-width: 150px;
+  }
+  .signin .title{ font-size:24px; }
+  .signin .subtitle{ font-size:12px; }
+  .signin .tabButton{ height:38px; font-size:14px; }
+  .signin .input{ font-size:15px; }
+  .signin .btn{ height:44px; font-size:15px; }
+  .signin .hint{ font-size:12px; }
+}
+
+@media (max-width: 480px) {
+  .signin .logo-container {
+    height: 50px;
+  }
+  .signin .logo-image {
+    height: 50px;
+    max-width: 120px;
+  }
+  .signin .header {
+    gap: 12px;
+  }
+}
+
+.screen.signin.dark .input {
+  background: var(--bg-secondary);
+  border-color: var(--outline);
+  color: var(--text);
+}
+
+.screen.signin.dark .input:focus {
+  background: var(--surface);
+  border-color: var(--p2);
+}
+
+.screen.signin.dark .togglePass:hover {
+  background: var(--bg-secondary);
+}
+
+.screen.signin.dark .card:focus-within {
+  box-shadow: 0 28px 56px rgba(0,0,0,0.4);
+  border-color: var(--outline);
+}
 
 /* -------- Responsivo -------- */
 @media (prefers-reduced-motion: reduce){

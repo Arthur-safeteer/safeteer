@@ -6,6 +6,7 @@ import {
   confirmRegistration,
   resendConfirmationCode,
 } from "../../auth/cognitoAuth";
+import { usePrefs } from "../../contexts/PrefsContext";
 import "./SignIN.css";
 
 function EyeIcon({ on }: { on: boolean }) {
@@ -21,6 +22,7 @@ function EyeIcon({ on }: { on: boolean }) {
 type RegStep = "form" | "code";
 
 export default function SignIN() {
+  const { darkMode } = usePrefs();
   const [tab, setTab] = useState<"login" | "register">("login");
 
   // LOGIN
@@ -114,10 +116,41 @@ export default function SignIN() {
   }
 
   return (
-    <div className="screen signin">
+    <div className={`screen signin ${darkMode ? 'dark' : ''}`}>
       <div className="card pop-in">
         <div className="header">
-          <h1 className="title">Entrar ou Criar conta</h1>
+          {/* Logo */}
+          <div className="logo-container">
+            <img
+              src={darkMode ? "/assets/Vertical-2.png" : "/assets/Vertical-1.png"}
+              alt="Safeteer Logo"
+              className="logo-image"
+              onError={(e) => {
+                // Fallback caso a imagem não carregue
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                const fallback = document.createElement('div');
+                fallback.textContent = 'Safeteer';
+                fallback.style.cssText = `
+                  height: 60px;
+                  display: flex;
+                  align-items: center;
+                  font-size: 24px;
+                  font-weight: 700;
+                  color: var(--text);
+                  background: linear-gradient(135deg, #1dc0ab, #0d9488);
+                  -webkit-background-clip: text;
+                  -webkit-text-fill-color: transparent;
+                  background-clip: text;
+                `;
+                target.parentNode?.insertBefore(fallback, target);
+              }}
+            />
+          </div>
+          
+          <h1 className="title">
+            {tab === "login" ? "Entrar na conta" : "Criar conta"}
+          </h1>
           <div className="subtitle">
             {tab === "login" ? "Entre na sua conta" : "Crie uma nova conta"}
           </div>

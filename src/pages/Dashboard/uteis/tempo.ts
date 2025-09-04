@@ -13,69 +13,161 @@
  */
 
 import type { Alerta, Intervalo, PontoTimeline } from "../tipos";
+import { usePrefs } from "../../../contexts/PrefsContext";
 
 /** Fuso fixo para todo o app (exibição e cálculos): UTC */
 export const TIME_ZONE = "UTC";
 
 /**
- * Converte uma entrada (string/number) para milissegundos desde epoch, em UTC.
- * Regras:
- *  - number:
- *      * < 1e12: assume segundos e converte para ms
- *      * >= 1e12: assume ms
- *  - string:
- *      * ISO sem timezone (yyyy-mm-dd[ hh:mm[:ss]]): trata como UTC manualmente
- *      * BR (dd/mm/yyyy[ hh:mm[:ss]]): trata como UTC manualmente
- *      * Outras strings: delega ao Date.parse (respeita Z ou offsets se houver)
+ * Converte string ISO para timestamp UTC
  */
-
-export function parseEmUtc(v?: string | number): number | null {
-  if (v == null) return null;
-  if (typeof v === "number") return v < 1e12 ? v * 1000 : v;
-  const s = String(v).trim();
-
-  // ISO "nu" sem Z/offset → interpretar como UTC
-  const mIsoSemTZ = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
-  const temTZ = /[zZ]|[+-]\d{2}:?\d{2}$/.test(s);
-  if (mIsoSemTZ && !temTZ) {
-    const [, yyyy, mm, dd, hh = "00", mi = "00", ss = "00"] = mIsoSemTZ;
-    return Date.UTC(+yyyy, +mm - 1, +dd, +hh, +mi, +ss);
+export function parseEmUtc(iso: string): number | null {
+  try {
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? null : d.getTime();
+  } catch {
+    return null;
   }
-
-  // Formato brasileiro dd/mm/yyyy (opcional hora) → interpretar como UTC
-  const mBr = s.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
-  if (mBr) {
-    const [, dd, mm, yyyy, hh = "00", mi = "00", ss = "00"] = mBr;
-    return Date.UTC(+yyyy, +mm - 1, +dd, +hh, +mi, +ss);
-  }
-
-  // Outros formatos: deixar o motor do JS decidir (respeita Z/+hh:mm/-hh:mm)
-  const t = Date.parse(s);
-  return Number.isNaN(t) ? null : t;
 }
 
 /**
- * Formata um timestamp (string/number) em string "pt-BR" fixa em UTC.
- * Ex.: 26/08/2025 13:07:41
+ * Formata data UTC para exibição
  */
-export function formatarDataUTC(v?: string | number): string {
-  const ms = parseEmUtc(v);
-  if (ms == null) return "—";
-  return new Date(ms).toLocaleString("pt-BR", {
-    timeZone: TIME_ZONE,
-    hour12: false,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+export function formatarDataUTC(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
 }
 
-/** Rótulo de hora para o eixo X (sempre UTC): "HH:00" */
-const rotuloHora = (msUtc: number) =>
-  new Date(msUtc).toLocaleString("pt-BR", { timeZone: TIME_ZONE, hour: "2-digit", hour12: false }) + ":00";
+/**
+ * Formata data usando o fuso horário do usuário
+ */
+export function formatarDataLocal(iso: string): string {
+  try {
+    // Obtém o fuso horário do contexto de preferências
+    const timezone = localStorage.getItem("prefs.v1") 
+      ? JSON.parse(localStorage.getItem("prefs.v1")!).timezone 
+      : "America/Sao_Paulo";
+    
+    const d = new Date(iso);
+    return d.toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      timeZone: timezone,
+    });
+  } catch {
+    return formatarDataUTC(iso);
+  }
+}
+
+/**
+ * Formata data para exibição compacta usando fuso local
+ */
+export function formatarDataCompacta(iso: string): string {
+  try {
+    const timezone = localStorage.getItem("prefs.v1") 
+      ? JSON.parse(localStorage.getItem("prefs.v1")!).timezone 
+      : "America/Sao_Paulo";
+    
+    const d = new Date(iso);
+    const agora = new Date();
+    const diffMs = agora.getTime() - d.getTime();
+    const diffMin = Math.floor(diffMs / (1000 * 60));
+    const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    // Se foi há menos de 1 minuto
+    if (diffMin < 1) return "Agora mesmo";
+    
+    // Se foi há menos de 1 hora
+    if (diffHrs < 1) return `há ${diffMin} min`;
+    
+    // Se foi há menos de 24 horas
+    if (diffDias < 1) return `há ${diffHrs}h`;
+    
+    // Se foi há menos de 7 dias
+    if (diffDias < 7) return `há ${diffDias} dias`;
+    
+    // Caso contrário, mostra a data completa
+    return d.toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      timeZone: timezone,
+    });
+  } catch {
+    return formatarDataUTC(iso);
+  }
+}
+
+/**
+ * Hook para usar formatação de data com fuso horário
+ */
+export function useFormataData() {
+  const { timezone } = usePrefs();
+  
+  const formatarLocal = (iso: string) => {
+    try {
+      const d = new Date(iso);
+      return d.toLocaleString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        timeZone: timezone,
+      });
+    } catch {
+      return formatarDataUTC(iso);
+    }
+  };
+
+  const formatarCompacta = (iso: string) => {
+    try {
+      const d = new Date(iso);
+      const agora = new Date();
+      const diffMs = agora.getTime() - d.getTime();
+      const diffMin = Math.floor(diffMs / (1000 * 60));
+      const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+      if (diffMin < 1) return "Agora mesmo";
+      if (diffHrs < 1) return `há ${diffMin} min`;
+      if (diffDias < 1) return `há ${diffHrs}h`;
+      if (diffDias < 7) return `há ${diffDias} dias`;
+      
+      return d.toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        timeZone: timezone,
+      });
+    } catch {
+      return formatarDataUTC(iso);
+    }
+  };
+
+  return { formatarLocal, formatarCompacta };
+}
+
+/** Rótulo de hora para o eixo X: "HH:00" */
+const rotuloHora = (msUtc: number, timezone: string = TIME_ZONE) =>
+  new Date(msUtc).toLocaleString("pt-BR", { timeZone: timezone, hour: "2-digit", hour12: false }) + ":00";
 
 /**
  * Agrega os alertas por hora (janelas curtas) ou por dia (janelas longas),
@@ -89,11 +181,13 @@ const rotuloHora = (msUtc: number) =>
  * @param alerts  lista de alertas normalizados (createdAt em qualquer formato)
  * @param period  "24h" | "7d" | "30d" (usado apenas quando não há range)
  * @param range   intervalo customizado opcional { start?: string; end?: string }
+ * @param timezone fuso horário para exibição dos rótulos
  */
 export function construirTimelineAPartirDeAlertas(
   alerts: Alerta[],
   period: "24h" | "7d" | "30d",
-  range?: Intervalo
+  range?: Intervalo,
+  timezone: string = TIME_ZONE
 ): PontoTimeline[] {
   // Constantes em ms (hora/dia) — facilita leitura e evita mágicas
   const HOUR = 3600_000, DAY = 24 * HOUR;
@@ -120,8 +214,8 @@ export function construirTimelineAPartirDeAlertas(
     const bins: PontoTimeline[] = Array.from({ length: n }, (_, i) => {
       const t = sUtc + i * bucketSize;
       const hour = bucketSize === HOUR
-        ? rotuloHora(t)
-        : new Date(t).toLocaleDateString("pt-BR", { timeZone: TIME_ZONE, day: "2-digit", month: "2-digit" });
+        ? rotuloHora(t, timezone)
+        : new Date(t).toLocaleDateString("pt-BR", { timeZone: timezone, day: "2-digit", month: "2-digit" });
       return { hour, baixa: 0, media: 0, alta: 0, critica: 0 };
     });
 
@@ -154,10 +248,10 @@ export function construirTimelineAPartirDeAlertas(
     const t = startUtc + i * bucketSize;
     const hour =
       period === "24h"
-        ? rotuloHora(t)
+        ? rotuloHora(t, timezone)
         : period === "7d"
-          ? new Date(t).toLocaleDateString("pt-BR", { weekday: "short", timeZone: TIME_ZONE })
-          : new Date(t).toLocaleDateString("pt-BR", { timeZone: TIME_ZONE, day: "2-digit", month: "2-digit" });
+          ? new Date(t).toLocaleDateString("pt-BR", { weekday: "short", timeZone: timezone })
+          : new Date(t).toLocaleDateString("pt-BR", { timeZone: timezone, day: "2-digit", month: "2-digit" });
     return { hour, baixa: 0, media: 0, alta: 0, critica: 0 };
   });
 

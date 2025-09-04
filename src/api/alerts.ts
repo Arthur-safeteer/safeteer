@@ -42,7 +42,7 @@ export type FilterBody = {
 
 /* ------------------------- Normalização ------------------------- */
 
-function normalizeHeader(h: any): ApiAlertHeaderRaw {
+function normalizarCabecalho(h: any): ApiAlertHeaderRaw {
   const r: ApiAlertHeaderRaw = {
     alerta_id: h.alerta_id ?? h.id ?? h.alertId ?? "",
     titulo: h.titulo ?? h.title,
@@ -72,9 +72,9 @@ function normalizeHeader(h: any): ApiAlertHeaderRaw {
   return r;
 }
 
-function normalizeArray(arr: any[]): ApiAlertHeaderRaw[] {
+function normalizarArray(arr: any[]): ApiAlertHeaderRaw[] {
   if (!Array.isArray(arr)) return [];
-  return arr.map(normalizeHeader);
+  return arr.map(normalizarCabecalho);
 }
 
 /* --------------------------- Calls --------------------------- */
@@ -83,7 +83,7 @@ function normalizeArray(arr: any[]): ApiAlertHeaderRaw[] {
  * Lista alertas. Preferimos a rota de filtro (shape mais rico) mesmo sem critérios.
  * Se a API recusar body vazio, fazemos fallback para o coletor (/alerta).
  */
-export async function listAlertHeaders(): Promise<ApiAlertHeaderRaw[]> {
+export async function listarCabecalhosAlertas(): Promise<ApiAlertHeaderRaw[]> {
   const jwt = getJwt();
   try {
     const { data } = await axios.post(
@@ -96,15 +96,15 @@ export async function listAlertHeaders(): Promise<ApiAlertHeaderRaw[]> {
         },
       }
     );
-    return normalizeArray(data);
+    return normalizarArray(data);
   } catch {
     const { data } = await httpColetar.get(coletarPath("/alerta"));
-    return normalizeArray(data);
+    return normalizarArray(data);
   }
 }
 
 // Busca detalhes de um alerta específico (por id)
-export async function getAlertDetails(alerta_id: string) {
+export async function obterDetalhesAlerta(alerta_id: string) {
   const { data } = await httpColetar.get(
     coletarPath(`/alerta/${encodeURIComponent(alerta_id)}`)
   );
@@ -112,7 +112,7 @@ export async function getAlertDetails(alerta_id: string) {
 }
 
 // Filtra no backend (POST) e já normaliza o resultado
-export async function filterAlerts(body: FilterBody): Promise<ApiAlertHeaderRaw[]> {
+export async function filtrarAlertas(body: FilterBody): Promise<ApiAlertHeaderRaw[]> {
   const jwt = getJwt();
   const { data } = await axios.post(FILTRAR_URL, body, {
     headers: {
@@ -120,21 +120,43 @@ export async function filterAlerts(body: FilterBody): Promise<ApiAlertHeaderRaw[
       "Content-Type": "application/json",
     },
   });
-  return normalizeArray(data);
+  return normalizarArray(data);
 }
 
-// Atualiza o status de um alerta (ex.: aberta → em_progresso)
-export async function updateAlertStatus(alerta_id: string, status: Status) {
+// Atualiza o status por alerta_id (cliente_id é extraído do JWT no backend)
+export async function atualizarStatusPorAlertaId(alerta_id: string, status: Status) {
   const jwt = getJwt();
-  const { data } = await axios.post(
-    STATUS_URL,
-    { alerta_id, status },
-    {
-      headers: {
-        Authorization: jwt ? `Bearer ${jwt}` : "",
-        "Content-Type": "application/json",
-      },
-    }
-  );
-  return data;
+  
+  // Converte o status para o formato esperado pela API
+  const statusParaAPI = status === "em_progresso" ? "Em Andamento" : 
+                       status === "fechada" ? "Fechada" : 
+                       status === "aberta" ? "Aberta" : status;
+  
+  const payload = { 
+    alerta_id, 
+    status: statusParaAPI 
+  };
+  
+  
+  try {
+    const { data } = await axios.post(
+      STATUS_URL,
+      payload,
+      {
+        headers: {
+          Authorization: jwt ? `Bearer ${jwt}` : "",
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    return data;
+  } catch (error: any) {
+    console.error("DEBUG - Erro completo da API:", {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message
+    });
+    throw error;
+  }
 }

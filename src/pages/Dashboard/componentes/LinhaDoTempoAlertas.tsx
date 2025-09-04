@@ -23,9 +23,9 @@ import {
 } from "recharts";
 import {
   construirTimelineAPartirDeAlertas,
-  //TIME_ZONE,
-  formatarDataUTC
+  formatarDataLocal
 } from "../uteis/tempo";
+import { usePrefs } from "../../../contexts/PrefsContext";
 import type { Alerta, Intervalo, Severidade } from "../tipos";
 
 /** Propriedades esperadas pelo componente */
@@ -52,6 +52,7 @@ const LinhaDoTempoAlertas: React.FC<Props> = ({
   titulo = "Linha do Tempo de Alertas",
   desabilitarPeriodoQuandoRange = true
 }) => {
+  const { timezone } = usePrefs();
   /** Estado local do período relativo (apenas para o gráfico principal) */
   const [periodo, setPeriodo] = useState<"24h" | "7d" | "30d">("24h");
 
@@ -61,8 +62,12 @@ const LinhaDoTempoAlertas: React.FC<Props> = ({
    * - aplica o filtro de severidades da legenda
    */
   const dados = useMemo(() => {
-    const base = construirTimelineAPartirDeAlertas(alerts, periodo, range);
-    if (!severidadesSelecionadas.length) return base;
+    const base = construirTimelineAPartirDeAlertas(alerts, periodo, range, timezone);
+    
+    // Se nenhuma severidade estiver selecionada, mostra todos os dados
+    if (!severidadesSelecionadas.length) {
+      return base;
+    }
 
     const want = new Set(severidadesSelecionadas);
     return base.map((b) => ({
@@ -72,7 +77,7 @@ const LinhaDoTempoAlertas: React.FC<Props> = ({
       alta: want.has("alta") ? b.alta : 0,
       critica: want.has("crítica") ? b.critica : 0
     }));
-  }, [alerts, periodo, range, severidadesSelecionadas]);
+  }, [alerts, periodo, range, severidadesSelecionadas, timezone]);
 
   /** `range` ativo indica modo “customizado” (intervalo de datas) */
   const rangeAtivo = !!(range?.start || range?.end);
@@ -124,13 +129,13 @@ const LinhaDoTempoAlertas: React.FC<Props> = ({
         <div className="timeline-subtitle">
           {rangeAtivo
             ? `Período filtrado${
-                range?.start ? ` de ${formatarDataUTC(range.start!)}` : ""
-              }${range?.end ? ` até ${formatarDataUTC(range.end!)}` : ""} (UTC)`
+                range?.start ? ` de ${formatarDataLocal(range.start!)}` : ""
+              }${range?.end ? ` até ${formatarDataLocal(range.end!)}` : ""} (${timezone})`
             : periodo === "24h"
-            ? "últimas 24 horas (UTC)"
+            ? `últimas 24 horas (${timezone})`
             : periodo === "7d"
-            ? "últimos 7 dias (UTC)"
-            : "últimos 30 dias (UTC)"}
+            ? `últimos 7 dias (${timezone})`
+            : `últimos 30 dias (${timezone})`}
         </div>
       </div>
 
@@ -156,17 +161,44 @@ const LinhaDoTempoAlertas: React.FC<Props> = ({
             />
             <Tooltip
               contentStyle={{
-                background: "rgba(255,255,255,0.95)",
-                border: "1px solid rgba(15,23,42,0.08)",
-                borderRadius: 12
+                background: "var(--surface)",
+                border: "1px solid var(--outline)",
+                borderRadius: 12,
+                boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+                color: "var(--text)"
+              }}
+              labelStyle={{
+                color: "var(--text)",
+                fontWeight: 600,
+                fontSize: 14
+              }}
+              formatter={(value, name) => {
+                const colors = {
+                  baixa: "#1dc0ab",
+                  media: "#facc15", 
+                  alta: "#f97316",
+                  critica: "#ef4444"
+                };
+                const labels = {
+                  baixa: "Baixa",
+                  media: "Média",
+                  alta: "Alta", 
+                  critica: "Crítica"
+                };
+                return [
+                  <span key={name} style={{ color: colors[name as keyof typeof colors] }}>
+                    {labels[name as keyof typeof labels]}: {value}
+                  </span>,
+                  ""
+                ];
               }}
             />
 
             {/* Cada Bar representa uma severidade; `stackId="a"` faz a pilha */}
-            <Bar dataKey="baixa"   stackId="a" fill="#1dc0ab" stroke="#1dc0ab" />
-            <Bar dataKey="media"   stackId="a" fill="#facc15" stroke="#facc15" />
-            <Bar dataKey="alta"    stackId="a" fill="#f97316" stroke="#f97316" />
-            <Bar dataKey="critica" stackId="a" fill="#ef4444" stroke="#ef4444" />
+            <Bar dataKey="baixa"   stackId="a" fill="#1dc0ab" stroke="none" radius={[0, 0, 4, 4]} />
+            <Bar dataKey="media"   stackId="a" fill="#facc15" stroke="none" radius={0} />
+            <Bar dataKey="alta"    stackId="a" fill="#f97316" stroke="none" radius={0} />
+            <Bar dataKey="critica" stackId="a" fill="#ef4444" stroke="none" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

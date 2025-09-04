@@ -1,43 +1,74 @@
-import React, { useMemo, useState } from "react";
-import type { Alerta, Severidade } from "../tipos";
-import { formatarDataUTC } from "../uteis/tempo";
+import React, { useMemo } from "react";import type { Alerta, Severidade } from "../tipos";
 
 /**
  * Cartões de Severidade
- * - Mostra 4 cards (Baixa, Média, Alta, Crítica) com contagens total/abertos.
- * - Clique em um card para expandir a lista de alertas em ABERTO daquela severidade.
- * - Se a prop `renderItem` for fornecida, usamos ela para renderizar cada alerta
- *   (ex.: reaproveitar o seu <LinhaAlerta /> do index). Senão, usamos um item básico.
+ * - Mostra 4 cards (Crítica, Alta, Média, Baixa) com contagens total/abertos.
+ * - Clique em um card para filtrar os alertas na seção "Alertas Recentes".
+ * - Redireciona para a seção de alertas com filtro aplicado.
  */
 type Props = {
   alerts: Alerta[];
-  renderItem?: (a: Alerta) => React.ReactNode;
+  onFilterBySeverity: (severity: Severidade | null) => void;
+  selectedSeverity: Severidade | null;
   incluirEmProgresso?: boolean; // se true, considera "em_progresso" como aberto
 };
 
 const CartoesSeveridade: React.FC<Props> = ({
   alerts,
-  renderItem,
+  onFilterBySeverity,
+  selectedSeverity,
   incluirEmProgresso = false,
 }) => {
-  const [aberto, setAberto] = useState<Severidade | null>(null);
-
-  // mapeia classe CSS da badge pela severidade
-  const classeSeveridade = (s: Severidade) =>
-    s === "crítica" ? "badge-critical" :
-    s === "alta"    ? "badge-high"     :
-    s === "média"   ? "badge-medium"   : "badge-low";
+  // (removido) mapeamento de classe não é mais usado neste componente
 
   const titulo = (s: Severidade) =>
     s === "baixa" ? "Baixa" : s === "média" ? "Média" : s === "alta" ? "Alta" : "Crítica";
 
+  // cores e ícones para cada severidade (versão minimalista)
+  const getSeverityConfig = (s: Severidade) => {
+    switch (s) {
+      case "crítica":
+        return {
+          bgColor: "var(--surface)",
+          borderColor: "#dc2626",
+          icon: "🔴",
+          textColor: "#dc2626",
+          badgeColor: "#dc2626"
+        };
+      case "alta":
+        return {
+          bgColor: "var(--surface)",
+          borderColor: "#ea580c",
+          icon: "🟠",
+          textColor: "#ea580c",
+          badgeColor: "#ea580c"
+        };
+      case "média":
+        return {
+          bgColor: "var(--surface)",
+          borderColor: "#d97706",
+          icon: "🟡",
+          textColor: "#d97706",
+          badgeColor: "#d97706"
+        };
+      case "baixa":
+        return {
+          bgColor: "var(--surface)",
+          borderColor: "#16a34a",
+          icon: "🟢",
+          textColor: "#16a34a",
+          badgeColor: "#16a34a"
+        };
+    }
+  };
+
   // agrupa e conta
   const grupos = useMemo(() => {
-    const base: Record<Severidade, { total: number; abertos: number; itensAbertos: Alerta[] }> = {
-      baixa:   { total: 0, abertos: 0, itensAbertos: [] },
-      média:   { total: 0, abertos: 0, itensAbertos: [] },
-      alta:    { total: 0, abertos: 0, itensAbertos: [] },
-      crítica: { total: 0, abertos: 0, itensAbertos: [] },
+    const base: Record<Severidade, { total: number; abertos: number }> = {
+      baixa:   { total: 0, abertos: 0 },
+      média:   { total: 0, abertos: 0 },
+      alta:    { total: 0, abertos: 0 },
+      crítica: { total: 0, abertos: 0 },
     };
     for (const a of alerts) {
       const g = base[a.severity];
@@ -45,80 +76,185 @@ const CartoesSeveridade: React.FC<Props> = ({
       const isAberto = a.status === "aberta" || (incluirEmProgresso && a.status === "em_progresso");
       if (isAberto) {
         g.abertos += 1;
-        g.itensAbertos.push(a);
       }
     }
     return base;
   }, [alerts, incluirEmProgresso]);
 
-  const ordem: Severidade[] = ["baixa", "média", "alta", "crítica"];
-  const cardStyle = (ativo: boolean): React.CSSProperties => ({
-    cursor: "pointer",
-    padding: 16,
-    borderRadius: 14,
-    border: ativo ? "1px solid rgba(15,23,42,0.18)" : "1px solid rgba(15,23,42,0.08)",
-    background: "#fff",
-    boxShadow: ativo ? "0 2px 0 rgba(15,23,42,0.06)" : "0 1px 0 rgba(15,23,42,0.04)",
-    transition: "border-color .15s, box-shadow .15s",
-  });
+  const ordem: Severidade[] = ["crítica", "alta", "média", "baixa"];
+  
+  const cardStyle = (s: Severidade, ativo: boolean): React.CSSProperties => {
+    const config = getSeverityConfig(s);
+    return {
+      cursor: "pointer",
+      padding: 16,
+      borderRadius: 12,
+      border: `1px solid var(--outline)`,
+      background: config.bgColor,
+      color: "var(--text)",
+      boxShadow: ativo ? "0 4px 12px rgba(0,0,0,0.12)" : "0 1px 3px rgba(0,0,0,0.06)",
+      transition: "all 0.2s ease",
+      transform: ativo ? "translateY(-1px)" : "translateY(0)",
+      position: "relative",
+    };
+  };
 
-  // fallback simples se você não passar renderItem
-  const ItemBasico: React.FC<{ a: Alerta }> = ({ a }) => (
-    <div className="card" style={{ padding: 14, borderRadius: 12, border: "1px solid rgba(15,23,42,0.06)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <span className={`badge ${classeSeveridade(a.severity)}`}>{a.severity.toUpperCase()}</span>
-        <div>
-          <div style={{ fontWeight: 700, color: "#0f172a" }}>{a.title}</div>
-          <div className="alert-meta">
-            <span>Origem: {a.endpoint}</span>
-            <span>Detecção: {formatarDataUTC(a.createdAt)}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  const handleCardClick = (severity: Severidade) => {
+    // Se já está selecionado, remove o filtro
+    if (selectedSeverity === severity) {
+      onFilterBySeverity(null);
+    } else {
+      // Aplica o filtro e scroll para a seção de alertas
+      onFilterBySeverity(severity);
+      
+      // Scroll suave para a seção de alertas recentes
+      setTimeout(() => {
+        const alertsSection = document.getElementById('alertas-recentes');
+        
+        if (alertsSection) {
+          alertsSection.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'start',
+            inline: 'nearest'
+          });
+        } else {
+          // Fallback: procura por texto que contenha "Alertas Recentes"
+          const elements = document.querySelectorAll('h3');
+          const alertsTitle = Array.from(elements).find(el => 
+            el.textContent?.includes('Alertas Recentes')
+          );
+          if (alertsTitle) {
+            alertsTitle.scrollIntoView({ 
+              behavior: 'smooth', 
+              block: 'start',
+              inline: 'nearest'
+            });
+          }
+        }
+      }, 150);
+    }
+  };
 
   return (
-    <div style={{ marginTop: 14 }}>
+    <div style={{ marginTop: 18, marginBottom: 32 }}>
+      {/* Título da seção */}
+      <h3 className="section-title" style={{ 
+        margin: "0 0 16px", 
+        fontSize: 18, 
+                     color: "var(--text)",
+        fontWeight: 700 
+      }}>
+        Severidade dos Alertas
+      </h3>
+
       {/* grid dos 4 cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 16 }}>
         {ordem.map((s) => {
-          const ativo = aberto === s;
+          const ativo = selectedSeverity === s;
           const info = grupos[s];
+          const config = getSeverityConfig(s);
+          
           return (
-            <div key={s} className="card" style={cardStyle(ativo)} onClick={() => setAberto(ativo ? null : s)}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                <span className={`badge ${classeSeveridade(s)}`}>{titulo(s).toUpperCase()}</span>
-                <div style={{ fontWeight: 800, fontSize: 20, color: "#0f172a" }}>{info.total}</div>
+            <div 
+              key={s} 
+              className="card" 
+              style={cardStyle(s, ativo)} 
+              onClick={() => handleCardClick(s)}
+              title={`Clique para filtrar alertas ${s}`}
+            >
+              {/* Header com ícone e título */}
+              <div style={{ 
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "space-between",
+                marginBottom: 12
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ 
+                    fontSize: 12, 
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                    color: config.textColor
+                  }}>
+                    {titulo(s)}
+                  </span>
+                </div>
+                
+                {/* Indicador de filtro ativo */}
+                {ativo && (
+                  <div style={{ fontSize: 12, opacity: 0.7, color: "var(--text)", fontWeight: 600 }}>✓</div>
+                )}
               </div>
-              <div style={{ fontSize: 12, color: "#64748b" }}>Abertos: <b>{info.abertos}</b></div>
+              
+              {/* Contadores principais */}
+              <div style={{ 
+                display: "flex", 
+                alignItems: "baseline", 
+                gap: 8,
+                marginBottom: 8
+              }}>
+                <div style={{ 
+                  fontSize: 24, 
+                  fontWeight: 700,
+                  lineHeight: 1
+                }}>
+                  {info.total}
+                </div>
+                <div style={{ 
+                  fontSize: 11, 
+                  opacity: 0.7,
+                  fontWeight: 500
+                }}>
+                  total
+                </div>
+              </div>
+              
+              {/* Alertas abertos */}
+              <div style={{ 
+                fontSize: 11,
+                opacity: 0.8,
+                fontWeight: 500
+              }}>
+                {info.abertos} em aberto
+              </div>
             </div>
           );
         })}
       </div>
 
-      {/* área expandida com a lista */}
-      {aberto && (
-        <div style={{ marginTop: 12 }}>
-          <div className="row-between" style={{ alignItems: "center", marginBottom: 6 }}>
-            <h4 className="section-title" style={{ margin: 0 }}>
-              Alertas <b>abertos</b> — severidade {titulo(aberto)}
-            </h4>
-            <button className="btn btn-outline" onClick={() => setAberto(null)}>Fechar</button>
+      {/* Indicador de filtro ativo */}
+      {selectedSeverity && (
+        <div style={{ 
+          marginTop: 16,
+          padding: "12px 16px",
+          background: "var(--surface-2)",
+          borderRadius: 12,
+          border: "1px solid var(--outline)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ 
+              fontSize: 14, 
+              fontWeight: 600,
+              color: "var(--text)"
+            }}>
+              Filtro ativo: {titulo(selectedSeverity)}
+            </span>
           </div>
-
-          {grupos[aberto].itensAbertos.length === 0 ? (
-            <div className="card" style={{ padding: 14, color: "#64748b" }}>
-              Nenhum alerta aberto para esta severidade.
-            </div>
-          ) : (
-            <div className="space-y" style={{ display: "grid", gap: 12 }}>
-              {grupos[aberto].itensAbertos.map((a) =>
-                renderItem ? <React.Fragment key={a.id}>{renderItem(a)}</React.Fragment>
-                           : <ItemBasico key={a.id} a={a} />
-              )}
-            </div>
-          )}
+          <button 
+            className="btn btn-outline" 
+            onClick={() => onFilterBySeverity(null)}
+            style={{
+              padding: "6px 12px",
+              fontSize: 11,
+              fontWeight: 600
+            }}
+          >
+            Limpar
+          </button>
         </div>
       )}
     </div>

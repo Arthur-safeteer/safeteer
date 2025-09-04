@@ -3,7 +3,7 @@ import { createGlobalStyle } from "styled-components";
 export default createGlobalStyle`
   /* ---- Tokens (usados pelas páginas) ---- */
   :root{
-    --bg:#0b1220;                     /* fundo de página */
+    --bg:#ffffff;                     /* fundo de página */
     --surface:#ffffff;                /* cartões e superfícies principais */
     --text:#0f172a;                   /* texto primário em superfícies claras */
     --muted:#5b6677;                  /* texto secundário */
@@ -16,20 +16,46 @@ export default createGlobalStyle`
     --shadow-md:0 10px 18px rgba(25,191,169,.22);
   }
 
+  /* ---- Tema Escuro ---- */
+  [data-theme="dark"] {
+    --bg: #0f172a;                    /* fundo escuro */
+    --surface: #1e293b;               /* cartões escuros */
+    --text: #f1f5f9;                  /* texto claro */
+    --muted: #94a3b8;                /* texto secundário claro */
+    --outline: rgba(241,245,249,.14); /* contornos claros */
+    --surface-2: rgba(241,245,249,.06); /* campos escuros */
+  }
+
   /* ---- Reset/Base ---- */
   *, *::before, *::after { box-sizing: border-box; }
   html, body, #root { height: 100%; }
   body {
     margin: 0;
-    background: radial-gradient(1200px 600px at 10% 0%, rgba(31, 208, 185, .18), transparent 60%),
-                radial-gradient(900px 520px at 100% 20%, rgba(29, 192, 171, .14), transparent 60%),
-                var(--bg);
-    color: #fff; 
+    background: var(--bg);
+    color: var(--text); 
     font-family: 'Roboto', system-ui, -apple-system, Segoe UI, Arial, sans-serif;
     -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
+
+  /* ---- Gradientes de fundo condicionais ---- */
+  body:not([data-theme="dark"]) {
+    background: var(--bg);
+  }
+
+  [data-theme="dark"] body {
+    background: radial-gradient(1200px 600px at 10% 0%, rgba(31, 208, 185, .08), transparent 60%),
+                radial-gradient(900px 520px at 100% 20%, rgba(29, 192, 171, .06), transparent 60%),
+                var(--bg);
+  }
+
   button, input, textarea, select { font: inherit; }
   button { cursor: pointer; }
   :focus { outline: none; }
   :focus-visible { outline: 2px solid var(--p2); outline-offset: 2px; }
+
+  /* ---- Transições suaves para mudanças de tema ---- */
+  * {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+  }
 `;
